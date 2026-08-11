@@ -18,10 +18,27 @@ function uniqueIds(values) {
 
 function edge(id, source, target) { return {id, source, target, kind:'depends_on'}; }
 
-function createChain({projectId, sourceAssetIds = [], rightsConfirmed = false, preflightStatus = null, existingNodes = []} = {}) {
+function sourceBindingValue(value) {
+  if (!value || typeof value !== 'object') return null;
+  const assetId = text(value.assetId, 120);
+  const sourceSha256 = text(value.sourceSha256, 64).toLowerCase();
+  const preflightStatus = text(value.preflightStatus, 40);
+  if (!assetId || !/^[A-Za-z0-9_.:-]{2,120}$/.test(assetId) || !/^[a-f0-9]{64}$/.test(sourceSha256)) return null;
+  return {
+    assetId,
+    sourceSha256,
+    sourceBytes:Number.isSafeInteger(Number(value.sourceBytes)) && Number(value.sourceBytes) > 0 ? Number(value.sourceBytes) : null,
+    rightsEventId:text(value.rightsEventId, 80) || null,
+    preflightStatus:preflightStatus === 'passed' ? 'passed' : 'blocked',
+    boundAt:text(value.boundAt, 80) || null
+  };
+}
+
+function createChain({projectId, sourceAssetIds = [], rightsConfirmed = false, preflightStatus = null, sourceBinding = null, existingNodes = []} = {}) {
   const assets = uniqueIds(sourceAssetIds);
   const preflight = text(preflightStatus, 40) === 'passed' ? 'passed' : null;
-  const sourceReady = assets.length > 0 && rightsConfirmed === true && preflight === 'passed';
+  const binding = sourceBindingValue(sourceBinding);
+  const sourceReady = Boolean(binding && assets.length === 1 && assets[0] === binding.assetId && binding.preflightStatus === 'passed');
   const priorById = new Map((Array.isArray(existingNodes) ? existingNodes : []).filter(node => node && CHAIN_NODE_IDS.includes(node.id)).map(node => [node.id, node]));
   const position = (id, fallback) => priorById.get(id)?.position || fallback;
   const sourceNode = {
@@ -30,12 +47,12 @@ function createChain({projectId, sourceAssetIds = [], rightsConfirmed = false, p
     kind:'source_input',
     skillKey:'mx-shortdrama-00-router',
     description:'上传有权使用的原片，完成权利声明与媒体预检后进入 Step01。',
-    parameters:{rightsConfirmed:rightsConfirmed === true, preflightStatus:preflight, gateState:sourceReady ? 'source_ready' : 'source_input_incomplete'},
+    parameters:{rightsConfirmed:binding ? true : rightsConfirmed === true, preflightStatus:binding?.preflightStatus || preflight, sourceBinding:binding, gateState:sourceReady ? 'source_ready' : 'source_input_incomplete'},
     assetRefs:assets.map(assetId => ({assetId, projectId, role:'source_video'})),
     status:sourceReady ? 'ready' : 'draft',
     recovery:{actions:['repair_input','reselect_asset'],lastAction:null},
     position:position(SOURCE_NODE_ID, {x:120,y:160}),
-    data:{title:'原片输入与权利确认',note:'先上传原片并完成权利确认、媒体预检。',assetIds:assets,inputAssetIds:[],status:sourceReady ? 'ready' : 'draft',skillKey:'mx-shortdrama-00-router',description:'上传有权使用的原片，完成权利声明与媒体预检后进入 Step01。',parameters:{rightsConfirmed:rightsConfirmed === true,preflightStatus:preflight,gateState:sourceReady ? 'source_ready' : 'source_input_incomplete'},assetRefs:assets.map(assetId => ({assetId,projectId,role:'source_video'})),recovery:{actions:['repair_input','reselect_asset'],lastAction:null}}
+    data:{title:'原片输入与权利确认',note:sourceReady ? '已绑定当前项目源片并通过服务器媒体预检。' : '先上传原片并完成权利确认、媒体预检。',assetIds:assets,inputAssetIds:[],status:sourceReady ? 'ready' : 'draft',skillKey:'mx-shortdrama-00-router',description:'上传有权使用的原片，完成权利声明与媒体预检后进入 Step01。',parameters:{rightsConfirmed:binding ? true : rightsConfirmed === true,preflightStatus:binding?.preflightStatus || preflight,sourceBinding:binding,gateState:sourceReady ? 'source_ready' : 'source_input_incomplete'},assetRefs:assets.map(assetId => ({assetId,projectId,role:'source_video'})),recovery:{actions:['repair_input','reselect_asset'],lastAction:null}}
   };
   const step01Node = {
     id:STEP01_NODE_ID,
@@ -43,11 +60,11 @@ function createChain({projectId, sourceAssetIds = [], rightsConfirmed = false, p
     kind:'analysis',
     skillKey:'mx-shortdrama-01-frame-extract',
     description:'提取原片镜头、关键帧、对白、OCR 与证据清单；没有完整服务器证据时保持阻塞。',
-    parameters:{profile:'hq_full',providerSubmitRequested:false,gateState:sourceReady ? 'step01_full_source_authority_blocked' : 'source_input_incomplete',blocker:sourceReady ? 'STEP01_FULL_SOURCE_AUTHORITY_PENDING' : 'SOURCE_INPUT_INCOMPLETE'},
+    parameters:{profile:'hq_full',providerSubmitRequested:false,sourceSha256:binding?.sourceSha256 || null,gateState:sourceReady ? 'step01_full_source_authority_blocked' : 'source_input_incomplete',blocker:sourceReady ? 'STEP01_FULL_SOURCE_AUTHORITY_PENDING' : 'SOURCE_INPUT_INCOMPLETE'},
     status:'blocked',
     recovery:{actions:['repair_input','reconcile_task'],lastAction:null},
     position:position(STEP01_NODE_ID, {x:480,y:160}),
-    data:{title:'Step01 源片分析',note:sourceReady ? '等待 Haika hq_full 完整证据链，不读取旧证据。' : '先完成原片输入、权利确认和媒体预检。',assetIds:[],inputAssetIds:assets,status:'blocked',skillKey:'mx-shortdrama-01-frame-extract',description:'提取原片镜头、关键帧、对白、OCR 与证据清单；没有完整服务器证据时保持阻塞。',parameters:{profile:'hq_full',providerSubmitRequested:false,gateState:sourceReady ? 'step01_full_source_authority_blocked' : 'source_input_incomplete',blocker:sourceReady ? 'STEP01_FULL_SOURCE_AUTHORITY_PENDING' : 'SOURCE_INPUT_INCOMPLETE'},recovery:{actions:['repair_input','reconcile_task'],lastAction:null}}
+    data:{title:'Step01 源片分析',note:sourceReady ? '已锁定当前源片 SHA；等待 Haika hq_full 完整证据链，不读取旧证据。' : '先完成原片输入、权利确认和媒体预检。',assetIds:[],inputAssetIds:assets,status:'blocked',skillKey:'mx-shortdrama-01-frame-extract',description:'提取原片镜头、关键帧、对白、OCR 与证据清单；没有完整服务器证据时保持阻塞。',parameters:{profile:'hq_full',providerSubmitRequested:false,sourceSha256:binding?.sourceSha256 || null,gateState:sourceReady ? 'step01_full_source_authority_blocked' : 'source_input_incomplete',blocker:sourceReady ? 'STEP01_FULL_SOURCE_AUTHORITY_PENDING' : 'SOURCE_INPUT_INCOMPLETE'},recovery:{actions:['repair_input','reconcile_task'],lastAction:null}}
   };
   const step02Node = {
     id:STEP02_NODE_ID,
@@ -77,4 +94,4 @@ function mergeChain(document, chain) {
   };
 }
 
-module.exports = {CHAIN_NODE_IDS,SOURCE_NODE_ID,STEP01_NODE_ID,STEP02_NODE_ID,createChain,mergeChain,uniqueIds};
+module.exports = {CHAIN_NODE_IDS,SOURCE_NODE_ID,STEP01_NODE_ID,STEP02_NODE_ID,createChain,mergeChain,uniqueIds,sourceBindingValue};
