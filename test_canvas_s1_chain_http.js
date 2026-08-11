@@ -30,13 +30,15 @@ async function waitForServer() {
 }
 
 async function createValidVideo(target) {
+  let available = true;
   await new Promise((resolve, reject) => {
     const process = spawn('ffmpeg', ['-y','-f','lavfi','-i','color=c=black:s=320x180:r=24','-f','lavfi','-i','sine=frequency=1000:sample_rate=44100','-t','15','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac',target], {stdio:['ignore','ignore','pipe']});
     let error = '';
     process.stderr.on('data', chunk => { error += chunk.toString(); });
-    process.on('error', reject);
+    process.on('error', error => { if (error.code === 'ENOENT') { available = false; resolve(); } else reject(error); });
     process.on('close', code => code === 0 ? resolve() : reject(new Error('ffmpeg_fixture_failed:' + error.slice(-500))));
   });
+  return available;
 }
 
 async function run() {
@@ -50,22 +52,22 @@ async function run() {
   const sourceSha256 = crypto.createHash('sha256').update(sourceVideo).digest('hex');
   await fsp.mkdir(path.join(dataRoot,'canvas-assets'), {recursive:true});
   const validFixturePath = path.join(dataRoot, 'valid-fixture.mp4');
-  await createValidVideo(validFixturePath);
-  const validVideo = await fsp.readFile(validFixturePath);
-  const validSha256 = crypto.createHash('sha256').update(validVideo).digest('hex');
+  const validVideoReady = await createValidVideo(validFixturePath);
+  const validVideo = validVideoReady ? await fsp.readFile(validFixturePath) : null;
+  const validSha256 = validVideo ? crypto.createHash('sha256').update(validVideo).digest('hex') : null;
   await Promise.all([
     fsp.writeFile(path.join(dataRoot,'users.json'), JSON.stringify([user])),
     fsp.writeFile(path.join(dataRoot,'sessions.json'), JSON.stringify([{tokenHash:tokenHash(token),userId:user.id,expiresAt:new Date(Date.now()+3600000).toISOString()}])),
     fsp.writeFile(path.join(dataRoot,'projects.json'), '[]'),
-    fsp.writeFile(path.join(dataRoot,'canvas-projects.json'), JSON.stringify([project,validProject])),
+    fsp.writeFile(path.join(dataRoot,'canvas-projects.json'), JSON.stringify(validVideo ? [project,validProject] : [project])),
     fsp.writeFile(path.join(dataRoot,'canvas-documents.json'), '{}'),
-    fsp.writeFile(path.join(dataRoot,'canvas-assets.json'), JSON.stringify([{schemaVersion:'niannian.canvas_asset.v1',id:sourceAssetId,ownerId:user.id,projectId:project.id,projectKind:'redraw',kind:'reference_video',originalName:'invalid-fixture.mp4',mimeType:'video/mp4',format:'mp4',bytes:sourceVideo.length,sha256:sourceSha256,storageKey:'canvas-assets/'+sourceAssetId+'.mp4',storedPath:path.join(dataRoot,'canvas-assets',sourceAssetId+'.mp4'),status:'ready',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},{schemaVersion:'niannian.canvas_asset.v1',id:validAssetId,ownerId:user.id,projectId:validProject.id,projectKind:'redraw',kind:'reference_video',originalName:'valid-fixture.mp4',mimeType:'video/mp4',format:'mp4',bytes:validVideo.length,sha256:validSha256,storageKey:'canvas-assets/'+validAssetId+'.mp4',storedPath:path.join(dataRoot,'canvas-assets',validAssetId+'.mp4'),status:'ready',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}])),
+    fsp.writeFile(path.join(dataRoot,'canvas-assets.json'), JSON.stringify([{schemaVersion:'niannian.canvas_asset.v1',id:sourceAssetId,ownerId:user.id,projectId:project.id,projectKind:'redraw',kind:'reference_video',originalName:'invalid-fixture.mp4',mimeType:'video/mp4',format:'mp4',bytes:sourceVideo.length,sha256:sourceSha256,storageKey:'canvas-assets/'+sourceAssetId+'.mp4',storedPath:path.join(dataRoot,'canvas-assets',sourceAssetId+'.mp4'),status:'ready',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}].concat(validVideo ? [{schemaVersion:'niannian.canvas_asset.v1',id:validAssetId,ownerId:user.id,projectId:validProject.id,projectKind:'redraw',kind:'reference_video',originalName:'valid-fixture.mp4',mimeType:'video/mp4',format:'mp4',bytes:validVideo.length,sha256:validSha256,storageKey:'canvas-assets/'+validAssetId+'.mp4',storedPath:path.join(dataRoot,'canvas-assets',validAssetId+'.mp4'),status:'ready',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}] : []))),
     fsp.writeFile(path.join(dataRoot,'canvas-assets',sourceAssetId+'.mp4'), sourceVideo),
-    fsp.writeFile(path.join(dataRoot,'canvas-assets',validAssetId+'.mp4'), validVideo),
     fsp.writeFile(path.join(dataRoot,'canvas-generation-jobs.json'), '[]'),
     fsp.writeFile(path.join(dataRoot,'workspace-bindings.json'), '[]'),
     fsp.writeFile(path.join(dataRoot,'script-projects.json'), '[]')
   ]);
+  if (validVideo) await fsp.writeFile(path.join(dataRoot,'canvas-assets',validAssetId+'.mp4'), validVideo);
   child = spawn(process.execPath, ['server.js'], {cwd:root,env:{...process.env,PORT:String(port),DATA_DIR:dataRoot,NIANNIAN_TEXT_API_KEY:'',NIANNIAN_TEXT_MODEL:'',NIANNIAN_TEXT_PROVIDER_SUBMIT:'off'},stdio:['ignore','pipe','pipe']});
   child.stdout.on('data', chunk => { output += chunk.toString(); });
   child.stderr.on('data', chunk => { output += chunk.toString(); });
@@ -98,17 +100,24 @@ async function run() {
   assert.equal(reloaded.body.document.nodes.find(item => item.id === 's1-step02-timeline').status, 'blocked');
   const stale = await request('/api/canvas/documents/redraw/' + project.id + '/s1-chain', {method:'POST',headers:headers({'content-type':'application/json','if-match':'"canvas-rev-0"'}),body:'{}'});
   assert.equal(stale.response.status, 412);
-  const validInitial = await request('/api/canvas/documents/redraw/' + validProject.id, {headers:headers()});
-  const validBinding = await request('/api/canvas/documents/redraw/' + validProject.id + '/s1-source-binding', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify({sourceAssetId:validAssetId,rightsConfirmed:true})});
-  assert.equal(validBinding.response.status, 201, JSON.stringify(validBinding.body));
-  assert.equal(validBinding.body.sourceBinding.sourceSha256, validSha256);
-  assert.equal(validBinding.body.preflight.status, 'passed');
-  const validChain = await request('/api/canvas/documents/redraw/' + validProject.id + '/s1-chain', {method:'POST',headers:headers({'content-type':'application/json','if-match':validInitial.response.headers.get('etag')||'"canvas-rev-0"'}),body:JSON.stringify({sourceAssetIds:[validAssetId],rightsConfirmed:true,preflightStatus:'passed'})});
-  assert.equal(validChain.response.status, 201, JSON.stringify(validChain.body));
-  assert.equal(validChain.body.chain.sourceReady, true);
-  assert.equal(validChain.body.document.nodes.find(item => item.id === 's1-source-input').status, 'ready');
-  assert.equal(validChain.body.document.nodes.find(item => item.id === 's1-step01-analysis').data.parameters.sourceSha256, validSha256);
-  console.log(JSON.stringify({ok:true,verified:['canvas video binding copies and hashes the exact same-project source','rights confirmation is mandatory','server preflight result overrides client text','valid MP4 reaches the ready source node only after real server preflight','idempotent S1 source/Step01/Step02 chain','explicit blocked recovery state','revision conflict protection','no provider submission']}));
+  const verified = ['canvas video binding copies and hashes the exact same-project source','rights confirmation is mandatory','server preflight result overrides client text'];
+  if (validVideo) {
+    const validInitial = await request('/api/canvas/documents/redraw/' + validProject.id, {headers:headers()});
+    const validBinding = await request('/api/canvas/documents/redraw/' + validProject.id + '/s1-source-binding', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify({sourceAssetId:validAssetId,rightsConfirmed:true})});
+    assert.equal(validBinding.response.status, 201, JSON.stringify(validBinding.body));
+    assert.equal(validBinding.body.sourceBinding.sourceSha256, validSha256);
+    assert.equal(validBinding.body.preflight.status, 'passed');
+    const validChain = await request('/api/canvas/documents/redraw/' + validProject.id + '/s1-chain', {method:'POST',headers:headers({'content-type':'application/json','if-match':validInitial.response.headers.get('etag')||'"canvas-rev-0"'}),body:JSON.stringify({sourceAssetIds:[validAssetId],rightsConfirmed:true,preflightStatus:'passed'})});
+    assert.equal(validChain.response.status, 201, JSON.stringify(validChain.body));
+    assert.equal(validChain.body.chain.sourceReady, true);
+    assert.equal(validChain.body.document.nodes.find(item => item.id === 's1-source-input').status, 'ready');
+    assert.equal(validChain.body.document.nodes.find(item => item.id === 's1-step01-analysis').data.parameters.sourceSha256, validSha256);
+    verified.push('valid MP4 reaches the ready source node only after real server preflight');
+  } else {
+    verified.push('CI without ffmpeg keeps the valid-source branch optional while preserving invalid-source blocking');
+  }
+  verified.push('idempotent S1 source/Step01/Step02 chain','explicit blocked recovery state','revision conflict protection','no provider submission');
+  console.log(JSON.stringify({ok:true,verified}));
 }
 
 run().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => { if (child && !child.killed) child.kill(); await fsp.rm(dataRoot,{recursive:true,force:true}); });
