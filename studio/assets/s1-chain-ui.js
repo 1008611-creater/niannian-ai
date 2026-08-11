@@ -48,6 +48,7 @@
       '#s1-chain-panel[hidden]{display:none}#s1-chain-panel h2{margin:0;font-size:16px;font-weight:700}#s1-chain-panel p{margin:5px 0 12px;color:#786958}#s1-chain-panel .s1-eyebrow{font-size:10px;letter-spacing:.12em;color:#9a6a3c;font-weight:700}#s1-chain-panel .s1-assets{display:grid;gap:6px;margin:10px 0 12px}',
       '#s1-chain-panel label.s1-asset{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid rgba(90,64,42,.12);border-radius:8px;background:#fffaf3;cursor:pointer}#s1-chain-panel label.s1-asset:hover{border-color:#b78455}#s1-chain-panel .s1-asset-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '#s1-chain-panel .s1-row{display:flex;gap:8px;align-items:center;margin:8px 0}#s1-chain-panel select{flex:1;padding:7px;border:1px solid rgba(90,64,42,.2);border-radius:7px;background:#fff}#s1-chain-panel button{border:0;border-radius:7px;padding:8px 11px;background:#2a2118;color:#fff;cursor:pointer;font-weight:600}#s1-chain-panel button[disabled]{opacity:.45;cursor:default}#s1-chain-panel .s1-secondary{background:#efe5d8;color:#4c3828}#s1-chain-panel .s1-status{margin-top:10px;padding:9px;border-radius:8px;background:#f4eee6;color:#5d4d3d;white-space:pre-wrap}#s1-chain-panel .s1-status.error{background:#fff0ee;color:#a33b2d}#s1-chain-panel .s1-nodes{display:grid;gap:5px;margin-top:10px}#s1-chain-panel .s1-node{display:flex;justify-content:space-between;gap:8px;padding:7px 8px;background:#faf5ef;border-radius:7px}#s1-chain-panel .s1-node small{color:#8b7764}#s1-chain-panel .s1-readiness{margin-top:10px;padding:9px;border:1px solid rgba(90,64,42,.12);border-radius:8px;background:#fffaf3;color:#5d4d3d}#s1-chain-panel .s1-readiness strong{display:block;color:#2a2118;margin-bottom:3px}#s1-chain-panel .s1-readiness[data-state="ready"]{border-color:#6f9b72;background:#f1f8f0}#s1-chain-panel .s1-readiness[data-state="blocked"]{border-color:#d7b6a8;background:#fff5f1}#s1-chain-panel .s1-evidence{margin-top:12px;padding:10px;border:1px solid rgba(90,64,42,.14);border-radius:9px;background:#fffaf3}#s1-chain-panel .s1-evidence[hidden]{display:none}#s1-chain-panel .s1-evidence header{display:flex;justify-content:space-between;gap:8px;align-items:baseline}#s1-chain-panel .s1-evidence h3{margin:0;font-size:13px}#s1-chain-panel .s1-evidence small{color:#786958}#s1-chain-panel .s1-evidence-summary{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;color:#5d4d3d}#s1-chain-panel .s1-evidence-summary span{padding:4px 6px;border-radius:6px;background:#f4eee6}#s1-chain-panel .s1-shot{padding:8px 0;border-top:1px solid rgba(90,64,42,.1)}#s1-chain-panel .s1-shot:first-of-type{border-top:0}#s1-chain-panel .s1-shot-meta{display:flex;justify-content:space-between;gap:8px;font-weight:600}#s1-chain-panel .s1-shot-meta small{font-weight:400}#s1-chain-panel .s1-frame-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:6px}#s1-chain-panel .s1-frame{min-width:0;margin:0}#s1-chain-panel .s1-frame img,#s1-chain-panel .s1-frame [role="img"]{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:5px;background:#eee5d9}#s1-chain-panel .s1-frame figcaption{display:flex;justify-content:space-between;gap:4px;margin-top:3px;font-size:10px;color:#786958}#s1-chain-panel .s1-evidence-message{margin:0;color:#786958}',
+      '#s1-chain-panel .s1-review{margin-top:12px;padding:10px;border:1px solid rgba(90,64,42,.14);border-radius:9px;background:#fdf8ef}#s1-chain-panel .s1-review[hidden]{display:none}#s1-chain-panel .s1-review header{display:flex;justify-content:space-between;gap:8px;align-items:baseline}#s1-chain-panel .s1-review h3{margin:0;font-size:13px}#s1-chain-panel .s1-review small{color:#786958}#s1-chain-panel .s1-review-summary{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}#s1-chain-panel .s1-review-summary span{padding:4px 6px;border-radius:6px;background:#f0e8dc;color:#5d4d3d}#s1-chain-panel .s1-review-row{padding:8px 0;border-top:1px solid rgba(90,64,42,.1)}#s1-chain-panel .s1-review-row:first-of-type{border-top:0}#s1-chain-panel .s1-review-row strong{display:block}#s1-chain-panel .s1-review-row p{margin:3px 0 0;color:#5d4d3d}',
       '@media (max-width:600px){#s1-chain-panel{left:10px;top:58px;width:calc(100vw - 20px);max-height:calc(100vh - 70px)}}'
     ].join('');
     document.head.appendChild(style);
@@ -69,10 +70,16 @@
     var startBtn = panel.querySelector('[data-s1-start]');
     var prepareStep02Btn = panel.querySelector('[data-s1-step02-prepare]');
     var evidenceEl = panel.querySelector('[data-s1-evidence]');
+    var reviewEl = document.createElement('section');
+    reviewEl.className = 's1-review';
+    reviewEl.dataset.s1Review = '';
+    reviewEl.hidden = true;
+    panel.insertBefore(reviewEl, statusEl);
     var rightsEl = panel.querySelector('[data-s1-rights]');
     var revision = 0;
     var assets = [];
     var evidenceRequest = 0;
+    var reviewRequest = 0;
 
     function formatTime(ms) {
       var value = Math.max(0, Number(ms || 0));
@@ -118,6 +125,42 @@
       } catch (error) {
         if (requestId !== evidenceRequest) return;
         renderEvidenceMessage((error.code ? error.code + ': ' : '') + (error.message || 'Step01 证据暂不可用'), true);
+      }
+    }
+
+    function renderReviewMessage(message, error) {
+      reviewEl.hidden = false;
+      reviewEl.innerHTML = '<p class="s1-evidence-message' + (error ? ' s1-status error' : '') + '">' + escapeHtml(message) + '</p>';
+    }
+
+    function renderReview(review) {
+      if (!review) { reviewEl.hidden = true; reviewEl.innerHTML = ''; return; }
+      var candidate = review.candidate;
+      var rows = Array.isArray(candidate && candidate.sourceRows) ? candidate.sourceRows : [];
+      var summary = '<div class="s1-review-summary"><span>状态 ' + escapeHtml(review.status || 'not_prepared') + '</span><span>镜头事实 ' + escapeHtml(String(rows.length)) + ' 条</span><span>Provider 提交：否</span></div>';
+      var body = rows.length ? rows.map(function (row) {
+        return '<article class="s1-review-row"><strong>' + escapeHtml(row.shotId || '镜头') + ' · ' + escapeHtml(formatTime(row.startMs) + ' - ' + formatTime(row.endMs)) + '</strong><p>' + escapeHtml(row.visualComposition || '暂无构图事实') + '</p><p>' + escapeHtml(row.blockingMovement || '暂无站位事实') + '</p></article>';
+      }).join('') : '<p class="s1-evidence-message">Step02 事务已回读，候选镜头事实尚未返回；不会把准备状态当成完成。</p>';
+      reviewEl.hidden = false;
+      reviewEl.innerHTML = '<header><h3>Step02 时间线审核</h3><small>mx-shortdrama-02-source-timeline · 只读</small></header>' + summary + body;
+    }
+
+    async function loadReview(readiness) {
+      if (!readiness || readiness.analysis?.status !== 'evidence_ready') {
+        reviewRequest += 1;
+        reviewEl.hidden = true;
+        reviewEl.innerHTML = '';
+        return;
+      }
+      var requestId = ++reviewRequest;
+      renderReviewMessage('正在读取 Step02 时间线事务...');
+      try {
+        var result = await api('/api/canvas/documents/' + encodeURIComponent(projectKind()) + '/' + encodeURIComponent(projectId()) + '/s1-step02-review');
+        if (requestId !== reviewRequest) return;
+        renderReview(result.body.review);
+      } catch (error) {
+        if (requestId !== reviewRequest) return;
+        renderReviewMessage((error.code ? error.code + ': ' : '') + (error.message || 'Step02 时间线暂不可读取'), true);
       }
     }
 
@@ -167,6 +210,7 @@
         renderAssets();
         renderReadiness(readiness.body.readiness);
         await loadEvidence(readiness.body.readiness);
+        await loadReview(readiness.body.readiness);
         setStatus(doc.body.document && doc.body.document.nodes && doc.body.document.nodes.some(function (node) { return node.id === 's1-source-input'; }) ? 'S1 节点链已存在，可继续在画布中编辑。' : '等待选择视频素材。');
       } catch (error) { renderReadiness(null); setStatus(error.message || '读取项目状态失败', true); }
     }
@@ -202,7 +246,8 @@
       setStatus('正在准备 Step02 时间线事务...');
       try {
         var id = projectId();
-        await api('/api/canvas/documents/' + encodeURIComponent(projectKind()) + '/' + encodeURIComponent(id) + '/s1-step02-prepare', {method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+        var result = await api('/api/canvas/documents/' + encodeURIComponent(projectKind()) + '/' + encodeURIComponent(id) + '/s1-step02-prepare', {method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+        renderReview(result.body.review);
         setStatus('Step02 时间线事务已准备。后续回读和接受仍需明确用户动作；本次未调用媒体 Provider。');
         await load();
       } catch (error) { setStatus((error.code ? error.code + ': ' : '') + (error.message || '准备 Step02 失败'), true); await load(); }
