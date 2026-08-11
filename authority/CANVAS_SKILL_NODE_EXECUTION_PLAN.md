@@ -130,6 +130,16 @@ S1 的输入边界已从“画布节点保存”推进为“画布视频资产�
 - 服务端复制同一资产字节到 Step01 `uploads/`，重新计算 SHA-256/字节数，并写入不可变 `project.source`、`rights_authority.json`、`task.json` 与预检账本；画布文档不保存本地路径、凭据或临时 URL。
 - 服务器媒体预检是唯一 `preflightStatus` 来源。客户端提交“已通过”不会绕过失败；有效 MP4 才能使原片节点成为 `ready`，无效视频保留阻塞和恢复状态。
 - 同一画布项目已经绑定另一份源片时拒绝静默替换，防止旧 Step01 证据跨源片复用；同一素材重复绑定是幂等读取。
+
+## 10. S1 运行时就绪回读（2026-08-12）
+
+S1 面板在创建分析任务前读取同一项目的服务器就绪状态：
+
+- `GET /api/canvas/documents/redraw/:projectId/s1-readiness` 只返回源片预检、当前分析状态、运行环境是否已配置、可恢复阻塞码和下一动作；不读取或输出凭据，不请求网络，不创建任务。
+- 当预检通过且分析环境完整配置时，面板才启用“开始 Step01 服务器分析”。该动作复用既有、SHA 绑定且幂等的 `POST /api/projects/:projectId/step01-analysis`；离开页面后任务仍可回读。
+- 未配置时保持明确阻塞，避免用户点击后才得到后台失败；状态接口与前端都不把“配置完成”误写成“证据已生成”。
+
+证据：运行时就绪单测、S1 HTTP 合同测试、桌面 `1440x900` 与移动 `390x844` 浏览器测试通过。该阶段没有 Provider 请求、费用、真实用户媒体或生产部署；S1 仍须通过一次授权的真实服务器分析、Step02 回读和体验验收，才可标记为生产可用。
 - 绑定成功不会提交 Provider、消耗费用或启动 Step01；Step01 仍须等待 Haika `hq_full` 完整证据链，Step02 仍只消费已验收 Step01 evidence。
 
 本阶段证据：`test_canvas_s1_chain_http.js` 覆盖权利门、同项目素材与 SHA 绑定、客户端预检伪造拒绝、有效 MP4 真实预检、幂等重放、节点 ready/blocked 投影、revision 冲突和无 Provider 提交；`test_studio_s1_chain_ui_contract.js` 覆盖 Studio 不再提供可伪造的预检下拉。当前没有真实 Step01 Provider/服务器执行、费用或生产部署。
