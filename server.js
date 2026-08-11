@@ -7293,6 +7293,58 @@ async function handleCanvasS1SourceBindingApi(request, response, pathname, user)
   }
 }
 
+function canvasS1ReadinessProjection(step01Project) {
+  const sourceReady = Boolean(step01Project && step01Project.preflight?.status === 'passed' && step01Project.source?.sha256);
+  const fullSourceAuthority = step01Project ? fullSourceStep01Authority.publicProjection(step01Project) : null;
+  const runtime = serverStep01Executor.runtimeReadiness(process.env);
+  const analysisStatus = String(step01Project?.analysis?.status || 'awaiting_source_binding');
+  const analysisActive = ['queued','capability_preflight','codex_dispatched','codex_running','return_received','reducer_verifying','running','prepared'].includes(analysisStatus);
+  const analysisReady = analysisStatus === 'evidence_ready';
+  const recoveryEligible = ['infra_failed','blocked_contract','blocked_resource','blocked_quality','blocked_authorization','blocked_transport'].includes(analysisStatus);
+  let blocker = null;
+  let nextAction = '先绑定一份当前项目的视频素材并通过服务器媒体预检。';
+  if (fullSourceAuthority?.status === 'blocked') {
+    blocker = fullSourceAuthority.blocker?.code || 'STEP01_FULL_SOURCE_AUTHORITY_PENDING';
+    nextAction = '当前源片正在等待完整 Step01 权威链；系统不会读取旧证据或启动替代分析。';
+  } else if (!sourceReady) {
+    blocker = 'STEP01_PREFLIGHT_REQUIRED';
+  } else if (analysisReady) {
+    nextAction = 'Step01 证据已准备完成，可以进入 Step02 源片时间线。';
+  } else if (analysisActive) {
+    nextAction = 'Step01 正在运行或等待回读；请刷新查看状态，系统不会重复提交。';
+  } else if (!runtime.ready) {
+    blocker = runtime.blocker;
+    nextAction = '服务器分析环境尚未就绪；补齐运行环境后再开始，不会创建分析任务。';
+  } else if (analysisStatus === 'awaiting_user_start' || recoveryEligible) {
+    nextAction = '分析环境已配置。点击“开始 Step01 服务器分析”后才会创建一次当前源片的分析任务。';
+  } else {
+    blocker = 'STEP01_START_NOT_ALLOWED';
+    nextAction = '当前项目状态不允许再次启动 Step01，请先刷新项目状态。';
+  }
+  const startAllowed = sourceReady && !fullSourceAuthority && runtime.ready && !analysisReady && !analysisActive && (analysisStatus === 'awaiting_user_start' || recoveryEligible);
+  return {
+    source:{status:sourceReady ? 'ready' : 'blocked',preflightStatus:step01Project?.preflight?.status || null,bound:Boolean(step01Project?.canvasSourceBinding),sha256Bound:Boolean(step01Project?.source?.sha256)},
+    analysis:{status:analysisStatus,active:analysisActive,ready:analysisReady,recoveryEligible},
+    execution:{profile:runtime.profile,status:runtime.status,ready:runtime.ready,blocker:runtime.blocker,providerRequested:false,spendRequested:false},
+    fullSourceAuthority:fullSourceAuthority ? {status:fullSourceAuthority.status,blocker:fullSourceAuthority.blocker?.code || null} : null,
+    startAllowed,
+    blocker,
+    nextAction
+  };
+}
+
+async function handleCanvasS1ReadinessApi(request, response, pathname, user) {
+  const match = pathname.match(/^\/api\/canvas\/documents\/(redraw|script)\/([^/]+)\/s1-readiness$/);
+  if (!match) return false;
+  if (request.method !== 'GET') { json(response, 405, {code:'METHOD_NOT_ALLOWED',error:'请求方法不允许'}); return true; }
+  const projectKind = match[1];
+  const projectId = decodeURIComponent(match[2]);
+  const canvasProject = await canvasOwnedProject(user, projectKind, projectId);
+  if (!canvasProject) { json(response, 404, {code:'PROJECT_NOT_FOUND',error:'画布项目不存在'}); return true; }
+  const step01Project = (await readProjects()).find(project => project.id === projectId && project.ownerId === user.id) || null;
+  return json(response, 200, {code:'CANVAS_S1_READINESS',readiness:canvasS1ReadinessProjection(step01Project),providerSubmitRequested:false,spendRequested:false}, {'Cache-Control':'no-store'});
+}
+
 async function handleCanvasS1ChainApi(request, response, pathname, user) {
   const match = pathname.match(/^\/api\/canvas\/documents\/(redraw|script)\/([^/]+)\/s1-chain$/);
   if (!match) return false;
@@ -8578,6 +8630,8 @@ async function handleApi(request, response, pathname) {
   if (pathname.startsWith('/api/canvas/documents/')) {
     const s1SourceBindingHandled = await handleCanvasS1SourceBindingApi(request, response, pathname, user);
     if (s1SourceBindingHandled) return;
+    const s1ReadinessHandled = await handleCanvasS1ReadinessApi(request, response, pathname, user);
+    if (s1ReadinessHandled) return;
     const s1ChainHandled = await handleCanvasS1ChainApi(request, response, pathname, user);
     if (s1ChainHandled) return;
     const handled = await handleCanvasDocumentApi(request, response, pathname, user);

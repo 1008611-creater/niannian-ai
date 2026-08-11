@@ -83,6 +83,13 @@ async function run() {
   assert.equal(binding.body.sourceBinding.sourceSha256, sourceSha256);
   assert.equal(binding.body.preflight.status, 'failed');
   assert.equal(binding.body.providerSubmitRequested, false);
+  const readiness = await request('/api/canvas/documents/redraw/' + project.id + '/s1-readiness', {headers:headers()});
+  assert.equal(readiness.response.status, 200, JSON.stringify(readiness.body));
+  assert.equal(readiness.body.code, 'CANVAS_S1_READINESS');
+  assert.equal(readiness.body.readiness.source.status, 'blocked');
+  assert.equal(readiness.body.readiness.execution.ready, false);
+  assert.equal(readiness.body.providerSubmitRequested, false);
+  assert.equal(readiness.body.spendRequested, false);
   const replayBinding = await request('/api/canvas/documents/redraw/' + project.id + '/s1-source-binding', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify({sourceAssetId,rightsConfirmed:true})});
   assert.equal(replayBinding.response.status, 201);
   assert.equal(replayBinding.body.created, false);
@@ -100,7 +107,7 @@ async function run() {
   assert.equal(reloaded.body.document.nodes.find(item => item.id === 's1-step02-timeline').status, 'blocked');
   const stale = await request('/api/canvas/documents/redraw/' + project.id + '/s1-chain', {method:'POST',headers:headers({'content-type':'application/json','if-match':'"canvas-rev-0"'}),body:'{}'});
   assert.equal(stale.response.status, 412);
-  const verified = ['canvas video binding copies and hashes the exact same-project source','rights confirmation is mandatory','server preflight result overrides client text'];
+  const verified = ['canvas video binding copies and hashes the exact same-project source','rights confirmation is mandatory','server preflight result overrides client text','S1 readiness exposes typed source/runtime blockers without provider work'];
   if (validVideo) {
     const validInitial = await request('/api/canvas/documents/redraw/' + validProject.id, {headers:headers()});
     const validBinding = await request('/api/canvas/documents/redraw/' + validProject.id + '/s1-source-binding', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify({sourceAssetId:validAssetId,rightsConfirmed:true})});

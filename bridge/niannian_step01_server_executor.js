@@ -90,6 +90,26 @@ function hqCapabilities(env = process.env) {
   if (missing.length) throw coded('STEP01_HQ_CREDENTIALS_MISSING', '完整原片分析服务尚未配置');
   return {credentials_configured:true, required_services:['mimo_asr', 'paddle_ocr', 'gpt_5_6'], missing:[]};
 }
+
+// This proves configuration only. It never contacts a provider, reads a
+// credential value, or starts a media process.
+function runtimeReadiness(env = process.env) {
+  try {
+    const roots = hqSkillRoots(env);
+    hqCapabilities(env);
+    modelConfig(env);
+    const runnerStats = fs.statSync(hqRunnerPath(env), {throwIfNoEntry:false});
+    if (!runnerStats?.isFile()) throw coded('STEP01_HQ_RUNNER_MISSING', '完整原片分析执行器缺失');
+    for (const root of Object.values(roots)) {
+      const stats = fs.statSync(root, {throwIfNoEntry:false});
+      if (!stats?.isDirectory()) throw coded('STEP01_HQ_SKILL_ROOT_MISSING', '完整原片分析 Skill 运行目录不可用');
+    }
+    return {profile:PROFILE,status:'configured',ready:true,blocker:null,provider_requested:false,spend_requested:false};
+  } catch (error) {
+    return {profile:PROFILE,status:'blocked',ready:false,blocker:String(error?.code || 'STEP01_HQ_RUNTIME_NOT_CONFIGURED'),provider_requested:false,spend_requested:false};
+  }
+}
+
 async function runHqWorker({sourcePath, root, project, analysisRun, env = process.env}) {
   const roots = hqSkillRoots(env);
   hqCapabilities(env);
@@ -336,4 +356,4 @@ async function runProject(options = {}) {
 
 if (require.main === module) runProject().catch(error => { process.stderr.write('step01_server_executor_failed: ' + String(error.code || error.message || error) + '\n'); process.exitCode = 1; });
 
-module.exports = {PROFILE, EVIDENCE_PROFILE, ROUTES, analyzeFrames, analyzeFramesWithRetry, attachHqVisualFacts, hqCapabilities, modelConfig, runHqWorker, runProject, segmentTimeline, validateModelOutput};
+module.exports = {PROFILE, EVIDENCE_PROFILE, ROUTES, analyzeFrames, analyzeFramesWithRetry, attachHqVisualFacts, hqCapabilities, modelConfig, runtimeReadiness, runHqWorker, runProject, segmentTimeline, validateModelOutput};
