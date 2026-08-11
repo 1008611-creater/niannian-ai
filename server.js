@@ -7293,6 +7293,20 @@ async function handleCanvasS1SourceBindingApi(request, response, pathname, user)
   }
 }
 
+function canvasS1SourceBindingProjection(step01Project) {
+  const assetId = canvasText(step01Project?.canvasSourceBinding?.assetId, 120);
+  const sourceSha256 = canvasText(step01Project?.source?.sha256, 64).toLowerCase();
+  if (!assetId || !/^[a-f0-9]{64}$/.test(sourceSha256)) return null;
+  return {
+    assetId,
+    sourceSha256,
+    sourceBytes:Number(step01Project.source?.bytes) || null,
+    rightsEventId:canvasText(step01Project?.rightsAuthority?.event_id, 80) || null,
+    preflightStatus:step01Project?.preflight?.status === 'passed' ? 'passed' : 'blocked',
+    boundAt:canvasText(step01Project?.canvasSourceBinding?.boundAt, 80) || null
+  };
+}
+
 function canvasS1ReadinessProjection(step01Project) {
   const sourceReady = Boolean(step01Project && step01Project.preflight?.status === 'passed' && step01Project.source?.sha256);
   const fullSourceAuthority = step01Project ? fullSourceStep01Authority.publicProjection(step01Project) : null;
@@ -7322,11 +7336,21 @@ function canvasS1ReadinessProjection(step01Project) {
     nextAction = '当前项目状态不允许再次启动 Step01，请先刷新项目状态。';
   }
   const startAllowed = sourceReady && !fullSourceAuthority && runtime.ready && !analysisReady && !analysisActive && (analysisStatus === 'awaiting_user_start' || recoveryEligible);
+  const sourceBinding = canvasS1SourceBindingProjection(step01Project);
+  const chain = canvasS1Chain.createChain({
+    projectId:step01Project?.id || '',
+    sourceAssetIds:sourceBinding ? [sourceBinding.assetId] : [],
+    rightsConfirmed:Boolean(sourceBinding),
+    sourceBinding,
+    step01Project,
+    runtime
+  });
   return {
     source:{status:sourceReady ? 'ready' : 'blocked',preflightStatus:step01Project?.preflight?.status || null,bound:Boolean(step01Project?.canvasSourceBinding),sha256Bound:Boolean(step01Project?.source?.sha256)},
     analysis:{status:analysisStatus,active:analysisActive,ready:analysisReady,recoveryEligible},
     execution:{profile:runtime.profile,status:runtime.status,ready:runtime.ready,blocker:runtime.blocker,providerRequested:false,spendRequested:false},
     fullSourceAuthority:fullSourceAuthority ? {status:fullSourceAuthority.status,blocker:fullSourceAuthority.blocker?.code || null} : null,
+    nodes:chain.nodes,
     startAllowed,
     blocker,
     nextAction
@@ -7343,6 +7367,28 @@ async function handleCanvasS1ReadinessApi(request, response, pathname, user) {
   if (!canvasProject) { json(response, 404, {code:'PROJECT_NOT_FOUND',error:'画布项目不存在'}); return true; }
   const step01Project = (await readProjects()).find(project => project.id === projectId && project.ownerId === user.id) || null;
   return json(response, 200, {code:'CANVAS_S1_READINESS',readiness:canvasS1ReadinessProjection(step01Project),providerSubmitRequested:false,spendRequested:false}, {'Cache-Control':'no-store'});
+}
+
+async function handleCanvasS1Step02PrepareApi(request, response, pathname, user) {
+  const match = pathname.match(/^\/api\/canvas\/documents\/(redraw|script)\/([^/]+)\/s1-step02-prepare$/);
+  if (!match) return false;
+  if (request.method !== 'POST') { json(response, 405, {code:'METHOD_NOT_ALLOWED',error:'请求方法不允许'}); return true; }
+  const projectKind = match[1];
+  const projectId = decodeURIComponent(match[2]);
+  const canvasProject = await canvasOwnedProject(user, projectKind, projectId);
+  if (!canvasProject) { json(response, 404, {code:'PROJECT_NOT_FOUND',error:'画布项目不存在'}); return true; }
+  const projects = await readProjects();
+  const project = projects.find(item => item.id === projectId && item.ownerId === user.id);
+  if (!project) { json(response, 409, {code:'STEP01_EVIDENCE_REQUIRED',error:'请先完成当前源片的 Step01 证据验证'}); return true; }
+  if (project.analysis?.status !== 'evidence_ready') { json(response, 409, {code:'STEP01_EVIDENCE_REQUIRED',error:'Step01 证据尚未就绪，不能创建 Step02 时间线事务',providerSubmitRequested:false,spendRequested:false}); return true; }
+  try {
+    const review = await step02Vertical.prepareStep02({project,jobRoot:path.join(jobsRoot, project.id)});
+    syncProjectStep02Projection(project, review);
+    await writeProjects(projects);
+    return json(response, 200, {code:'CANVAS_S1_STEP02_PREPARED',review,readiness:canvasS1ReadinessProjection(project),providerSubmitRequested:false,spendRequested:false,realDelivery:false}, {'Cache-Control':'no-store'});
+  } catch (error) {
+    return json(response, step02ApiStatus(error), {code:error.code || 'CANVAS_S1_STEP02_PREPARE_FAILED',error:error.message || 'Step02 时间线事务准备失败',providerSubmitRequested:false,spendRequested:false});
+  }
 }
 
 async function handleCanvasS1ChainApi(request, response, pathname, user) {
@@ -7368,15 +7414,9 @@ async function handleCanvasS1ChainApi(request, response, pathname, user) {
       if (request.headers['if-match'] !== canvasEtag(currentRevision)) throw Object.assign(new Error('画布已在其他页面更新，请先重新载入。'), {code:'CANVAS_REVISION_CONFLICT',httpStatus:412});
       const currentDocument = normalizeCanvasDocument(current?.document, project);
       const step01Project = (await readProjects()).find(item => item.id === projectId && item.ownerId === user.id) || null;
-      const sourceBinding = step01Project?.canvasSourceBinding?.assetId && sourceAssetIds.length === 1 && sourceAssetIds[0] === step01Project.canvasSourceBinding.assetId ? {
-        assetId:step01Project.canvasSourceBinding.assetId,
-        sourceSha256:step01Project.source?.sha256,
-        sourceBytes:step01Project.source?.bytes,
-        rightsEventId:step01Project.rightsAuthority?.event_id,
-        preflightStatus:step01Project.preflight?.status,
-        boundAt:step01Project.canvasSourceBinding.boundAt
-      } : null;
-      const chain = canvasS1Chain.createChain({projectId,sourceAssetIds,rightsConfirmed:body.rightsConfirmed === true,preflightStatus:body.preflightStatus,sourceBinding,existingNodes:currentDocument.nodes});
+      const sourceBinding = canvasS1SourceBindingProjection(step01Project);
+      const boundSource = sourceBinding && sourceAssetIds.length === 1 && sourceAssetIds[0] === sourceBinding.assetId ? sourceBinding : null;
+      const chain = canvasS1Chain.createChain({projectId,sourceAssetIds,rightsConfirmed:body.rightsConfirmed === true,preflightStatus:body.preflightStatus,sourceBinding:boundSource,existingNodes:currentDocument.nodes,step01Project,runtime:serverStep01Executor.runtimeReadiness(process.env)});
       const document = normalizeCanvasDocument(canvasS1Chain.mergeChain(currentDocument, chain), project);
       const revision = currentRevision + 1;
       const record = {schemaVersion:'niannian.canvas-document.v1',projectId:project.id,projectKind,ownerId:user.id,revision,document,updatedAt:new Date().toISOString()};
@@ -8632,6 +8672,8 @@ async function handleApi(request, response, pathname) {
     if (s1SourceBindingHandled) return;
     const s1ReadinessHandled = await handleCanvasS1ReadinessApi(request, response, pathname, user);
     if (s1ReadinessHandled) return;
+    const s1Step02PrepareHandled = await handleCanvasS1Step02PrepareApi(request, response, pathname, user);
+    if (s1Step02PrepareHandled) return;
     const s1ChainHandled = await handleCanvasS1ChainApi(request, response, pathname, user);
     if (s1ChainHandled) return;
     const handled = await handleCanvasDocumentApi(request, response, pathname, user);

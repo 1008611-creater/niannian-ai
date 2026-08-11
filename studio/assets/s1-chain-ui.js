@@ -59,7 +59,7 @@
     panel.id = 's1-chain-panel';
     panel.setAttribute('aria-label', 'S1 原片到时间线');
     panel.hidden = true;
-    panel.innerHTML = '<div class="s1-eyebrow">S1 CANVAS CHAIN</div><h2>原片到 Step02 时间线</h2><p>选择一份当前项目原片并确认权利。服务器会复制同一文件、校验 SHA 并执行媒体预检。</p><div class="s1-assets" data-s1-assets><span>正在读取项目素材...</span></div><label class="s1-row"><input type="checkbox" data-s1-rights> 我确认拥有该原片的使用与改编权限</label><div class="s1-row"><button type="button" data-s1-refresh class="s1-secondary">刷新素材</button><button type="button" data-s1-create disabled>绑定原片并创建节点</button></div><div class="s1-readiness" data-s1-readiness data-state="blocked"><strong>Step01 运行状态</strong>完成原片绑定后检查服务器分析环境。</div><div class="s1-row"><button type="button" data-s1-start disabled>开始 Step01 服务器分析</button></div><div class="s1-status" data-s1-status>等待选择一份视频素材。</div><div class="s1-nodes" data-s1-nodes hidden></div>';
+    panel.innerHTML = '<div class="s1-eyebrow">S1 CANVAS CHAIN</div><h2>原片到 Step02 时间线</h2><p>选择一份当前项目原片并确认权利。服务器会复制同一文件、校验 SHA 并执行媒体预检。</p><div class="s1-assets" data-s1-assets><span>正在读取项目素材...</span></div><label class="s1-row"><input type="checkbox" data-s1-rights> 我确认拥有该原片的使用与改编权限</label><div class="s1-row"><button type="button" data-s1-refresh class="s1-secondary">刷新素材</button><button type="button" data-s1-create disabled>绑定原片并创建节点</button></div><div class="s1-readiness" data-s1-readiness data-state="blocked"><strong>Step01 运行状态</strong>完成原片绑定后检查服务器分析环境。</div><div class="s1-row"><button type="button" data-s1-start disabled>开始 Step01 服务器分析</button><button type="button" data-s1-step02-prepare class="s1-secondary" disabled>准备 Step02 时间线</button></div><div class="s1-status" data-s1-status>等待选择一份视频素材。</div><div class="s1-nodes" data-s1-nodes hidden></div>';
     document.body.appendChild(panel);
     installStyles();
     var assetsEl = panel.querySelector('[data-s1-assets]');
@@ -67,17 +67,25 @@
     var nodesEl = panel.querySelector('[data-s1-nodes]');
     var createBtn = panel.querySelector('[data-s1-create]');
     var startBtn = panel.querySelector('[data-s1-start]');
+    var prepareStep02Btn = panel.querySelector('[data-s1-step02-prepare]');
     var rightsEl = panel.querySelector('[data-s1-rights]');
     var revision = 0;
     var assets = [];
 
     function setStatus(message, error) { statusEl.textContent = message; statusEl.classList.toggle('error', Boolean(error)); }
+    function renderNodes(nodes) {
+      var items = Array.isArray(nodes) ? nodes.filter(function (node) { return /^s1-/.test(node && node.id); }) : [];
+      nodesEl.hidden = items.length === 0;
+      nodesEl.innerHTML = items.map(function (node) { return '<div class="s1-node"><span>' + escapeHtml(node.data && node.data.title || node.id) + '</span><small>' + escapeHtml(node.status || 'draft') + '</small></div>'; }).join('');
+    }
     function renderReadiness(readiness) {
       var el = panel.querySelector('[data-s1-readiness]');
       if (!readiness) {
         el.dataset.state = 'blocked';
         el.innerHTML = '<strong>Step01 运行状态</strong>完成原片绑定后检查服务器分析环境。';
         startBtn.disabled = true;
+        prepareStep02Btn.disabled = true;
+        renderNodes([]);
         return;
       }
       var source = readiness.source || {};
@@ -86,6 +94,8 @@
       el.dataset.state = readiness.startAllowed || readiness.analysis && readiness.analysis.ready ? 'ready' : 'blocked';
       el.innerHTML = '<strong>Step01 运行状态</strong>' + lines.map(function (line) { return '<div>' + escapeHtml(line) + '</div>'; }).join('');
       startBtn.disabled = readiness.startAllowed !== true;
+      prepareStep02Btn.disabled = !Array.isArray(readiness.nodes) || !readiness.nodes.some(function (node) { return node.id === 's1-step02-timeline' && node.status === 'ready'; });
+      renderNodes(readiness.nodes);
     }
     function selectedIds() { return Array.prototype.slice.call(panel.querySelectorAll('input[data-s1-asset]:checked')).map(function (input) { return input.value; }); }
     function syncButton() { createBtn.disabled = selectedIds().length !== 1 || !rightsEl.checked; }
@@ -120,9 +130,7 @@
         var passed = binding.body && binding.body.preflight && binding.body.preflight.status === 'passed';
         var result = await api('/api/canvas/documents/' + encodeURIComponent(projectKind()) + '/' + encodeURIComponent(id) + '/s1-chain', {method: 'POST', headers: {'content-type': 'application/json', 'if-match': '"canvas-rev-' + revision + '"'}, body: JSON.stringify({sourceAssetIds: selected, rightsConfirmed: rightsEl.checked, preflightStatus: passed ? 'passed' : 'blocked'})});
         revision = Number(result.body.revision || revision);
-        var nodes = result.body.document && result.body.document.nodes || [];
-        nodesEl.hidden = false;
-        nodesEl.innerHTML = nodes.filter(function (node) { return /^s1-/.test(node.id); }).map(function (node) { return '<div class="s1-node"><span>' + escapeHtml(node.data && node.data.title || node.id) + '</span><small>' + escapeHtml(node.status) + '</small></div>'; }).join('');
+        renderNodes(result.body.document && result.body.document.nodes || []);
         var bindingMessage = passed ? '原片已绑定、SHA 已校验、媒体预检已通过。已创建 3 个节点和 2 条依赖边；可在运行状态卡确认是否能开始 Step01。' : '原片已绑定，但服务器媒体预检未通过。节点已保留，请修复该视频后在新项目重新绑定。';
         setStatus(bindingMessage);
         await load();
@@ -139,8 +147,18 @@
         await load();
       } catch (error) { setStatus((error.code ? error.code + ': ' : '') + (error.message || '启动 Step01 失败'), true); await load(); }
     }
+    async function prepareStep02() {
+      prepareStep02Btn.disabled = true;
+      setStatus('正在准备 Step02 时间线事务...');
+      try {
+        var id = projectId();
+        await api('/api/canvas/documents/' + encodeURIComponent(projectKind()) + '/' + encodeURIComponent(id) + '/s1-step02-prepare', {method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+        setStatus('Step02 时间线事务已准备。后续回读和接受仍需明确用户动作；本次未调用媒体 Provider。');
+        await load();
+      } catch (error) { setStatus((error.code ? error.code + ': ' : '') + (error.message || '准备 Step02 失败'), true); await load(); }
+    }
     panel.querySelector('[data-s1-refresh]').addEventListener('click', load);
-    rightsEl.addEventListener('change', syncButton); createBtn.addEventListener('click', create); startBtn.addEventListener('click', start);
+    rightsEl.addEventListener('change', syncButton); createBtn.addEventListener('click', create); startBtn.addEventListener('click', start); prepareStep02Btn.addEventListener('click', prepareStep02);
     load();
     window.addEventListener('hashchange', load);
   }

@@ -9,6 +9,7 @@ const tests = [
   'test_canvas_skill_nodes.js',
   'test_canvas_s1_chain_http.js',
   'test_step01_server_readiness.js',
+  'test_canvas_s1_timeline_projection.js',
   'test_web_runtime_adapter.js',
   'test_canvas_provider_config.js',
   'test_canvas_text_runtime.js',
