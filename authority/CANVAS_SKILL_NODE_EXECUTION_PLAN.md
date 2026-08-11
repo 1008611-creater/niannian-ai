@@ -162,3 +162,11 @@ S1 面板在创建分析任务前读取同一项目的服务器就绪状态：
 - `providerSubmitRequested`、`spendRequested` 和 `realDelivery` 在两个响应中保持 `false`。候选仍是 `downstreamConsumable:false`，只有服务端 acceptance 才能解锁 Step04。
 
 证据：`test_canvas_s1_step02_review_api.js` 校验公共投影和敏感字段边界；`test_canvas_s1_chain_http.js` 校验 Step01 未就绪时准备与回读都被拒绝。该变更仍不代表真实 Step01/Step02 生产执行完成。
+
+## 13. Step02 画布审核面板（2026-08-12）
+
+- Studio 在 Step01 evidence_ready 后读取安全 review 接口，并在 S1 面板中显示 Step02 状态、候选镜头事实数量、时间范围、构图和站位说明。
+- 未完成 Step01 时，Step02 审核面板保持隐藏，不发送 review 请求；刷新后重新读取当前项目状态，不依赖浏览器临时状态。
+- 面板只读展示候选，不把准备事务或候选回读当成 acceptance，也不触发 Provider、费用或下游节点。
+
+证据：`test_studio_s1_chain_ui_contract.js`、`test_studio_s1_chain_ui_browser.js` 覆盖脚本入口、review 路由、阻塞态和桌面/移动端无溢出。真实 Step02 候选回读与 owner acceptance 仍等待授权执行。
