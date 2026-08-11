@@ -55,12 +55,12 @@ async function main() {
     await page.goto(baseUrl + '/studio/?projectId=' + project.id + '&projectKind=redraw#/studio', {waitUntil:'networkidle'});
     const panel = page.locator('#s1-chain-panel');
     await panel.waitFor({state:'visible'});
-    await assert.rejects(panel.getByRole('button', {name:'创建 S1 节点链'}).click({timeout:300}), /Timeout|intercepted/, 'create remains disabled until all source gates pass');
-    await panel.getByRole('checkbox', {name:/source\.mp4/}).check();
+    await assert.rejects(panel.getByRole('button', {name:'绑定原片并创建节点'}).click({timeout:300}), /Timeout|intercepted/, 'binding remains disabled until a source and rights confirmation exist');
+    await panel.getByRole('radio', {name:/source\.mp4/}).check();
     await panel.getByRole('checkbox', {name:/我确认拥有/}).check();
-    await panel.locator('[data-s1-preflight]').selectOption('passed');
-    await panel.getByRole('button', {name:'创建 S1 节点链'}).click();
-    await panel.getByText('已创建 3 个节点和 2 条依赖边。').waitFor();
+    assert.equal(await panel.locator('[data-s1-preflight]').count(), 0, 'client cannot forge preflight state');
+    await panel.getByRole('button', {name:'绑定原片并创建节点'}).click();
+    await panel.getByText('服务器媒体预检未通过').waitFor();
     assert.equal(await panel.locator('.s1-node').count(), 3);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'desktop must not overflow');
     await page.setViewportSize({width:390,height:844});
@@ -70,7 +70,7 @@ async function main() {
     assert.deepEqual(consoleErrors, []);
     await context.close();
     await browser.close(); browser = null;
-    console.log(JSON.stringify({ok:true,verified:['desktop S1 panel selects a project video and creates the chain','creation is disabled until rights and preflight pass','mobile S1 panel stays within viewport','no provider task is sent']}));
+    console.log(JSON.stringify({ok:true,verified:['desktop S1 panel selects one project video and binds it through the server','client cannot forge a preflight pass','mobile S1 panel stays within viewport','no provider task is sent']}));
   } finally {
     if (browser) await browser.close();
     server.kill();
