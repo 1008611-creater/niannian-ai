@@ -7171,6 +7171,128 @@ async function handleCanvasDocumentApi(request, response, pathname, user) {
   }
 }
 
+function canvasS1BindingError(code, message, httpStatus = 409) {
+  return Object.assign(new Error(message), {code, httpStatus});
+}
+
+function canvasS1BoundProject({canvasProject, user, sourceAsset, sourcePath, now}) {
+  const source = {
+    originalName:sourceAsset.originalName,
+    storedPath:sourcePath,
+    storage_key:'uploads/' + path.basename(sourcePath),
+    mimeType:sourceAsset.mimeType,
+    bytes:sourceAsset.bytes,
+    sha256:sourceAsset.sha256
+  };
+  const rightsAuthority = {
+    schema_version:'niannian_source_rights_authority_v1',
+    event_id:'rights-' + crypto.randomBytes(12).toString('hex'),
+    status:'confirmed',
+    confirmed_by_user_id:user.id,
+    source_sha256:source.sha256,
+    source_bytes:source.bytes,
+    scope:'source_video_redraw_full_chain_under_explicit_provider_and_delivery_gates',
+    declaration:'user_confirmed_rights_to_use_and_adapt_uploaded_source',
+    confirmed_at:now,
+    revoked:false
+  };
+  return {
+    id:canvasProject.id,
+    ownerId:user.id,
+    name:canvasText(canvasProject.name, 80) || '画布转绘项目',
+    workspaceProjectId:canvasProject.id,
+    status:'queued',
+    createdAt:now,
+    remakeMode:'subject_replace',
+    targetLanguage:'es-MX',
+    visualStyle:'faithful_redraw',
+    aspectRatio:'9:16',
+    quality:'720p',
+    replacementBrief:'',
+    notes:'',
+    source,
+    sourceRevision:1,
+    rightsAuthority,
+    settingsVersion:1,
+    route:{router:'mx-shortdrama-00-router',earliestNode:'Step01',nextSkill:'mx-shortdrama-01-frame-extract'},
+    pipeline:pipeline(),
+    productionStatus:'preflight',
+    analysis:{status:'preflight_running',sourceSha256:source.sha256,settingsVersion:1,authorizationEventId:null,requestedAt:null,updatedAt:now},
+    runtime:{productionStatus:'preflight',currentNode:'source_preflight',earliestIncompleteNode:'Step01',nextSkill:'mx-shortdrama-01-frame-extract',blocker:null,nextAction:'正在验证画布原片的编码、时长、画面与音轨。',artifactCount:1,verifiedArtifactCount:1,gateState:'source_preflight_running',lastHeartbeat:null,checkpointUpdatedAt:now},
+    dispatch:{status:'awaiting_preflight',controllerId:null,leaseId:null,claimedAt:null,leaseUntil:null,heartbeatAt:null,mirroredAt:null,localJobId:null,blocker:null},
+    canvasSourceBinding:{assetId:sourceAsset.id,sourceSha256:source.sha256,sourceBytes:source.bytes,boundAt:now}
+  };
+}
+
+async function bindCanvasS1Source({user, projectKind, projectId, sourceAssetId, rightsConfirmed}) {
+  if (projectKind !== 'redraw') throw canvasS1BindingError('CANVAS_S1_SOURCE_KIND_UNSUPPORTED', '当前仅支持把转绘画布视频绑定为 Step01 源片', 422);
+  if (rightsConfirmed !== true) throw canvasS1BindingError('CANVAS_S1_RIGHTS_REQUIRED', '绑定原片前必须确认拥有该视频的使用与改编权限', 422);
+  const canvasProject = (await readCanvasProjects()).find(project => project.id === projectId && project.ownerId === user.id && project.projectKind === 'redraw');
+  if (!canvasProject) throw canvasS1BindingError('PROJECT_NOT_FOUND', '画布项目不存在', 404);
+  const asset = await canvasAssetService.getOwned(user.id, projectId, sourceAssetId);
+  if (!asset || asset.projectKind !== 'redraw' || asset.kind !== 'reference_video') throw canvasS1BindingError('CANVAS_S1_SOURCE_ASSET_INVALID', '请选择当前项目内的原片视频素材', 422);
+  const stat = await fsp.stat(asset.storedPath).catch(() => null);
+  if (!stat || !stat.isFile() || stat.size !== Number(asset.bytes)) throw canvasS1BindingError('CANVAS_S1_SOURCE_ASSET_INTEGRITY_FAILED', '画布原片暂时无法读取', 409);
+  const assetEvidence = await sha256StoredFile(asset.storedPath);
+  if (assetEvidence.sha256 !== asset.sha256 || assetEvidence.bytes !== Number(asset.bytes)) throw canvasS1BindingError('CANVAS_S1_SOURCE_ASSET_INTEGRITY_FAILED', '画布原片校验失败', 409);
+
+  return withRedrawProjectsWriteLock(async () => {
+    const projects = await readProjects();
+    const existing = projects.find(project => project.id === projectId && project.ownerId === user.id) || null;
+    if (existing) {
+      const bound = existing.canvasSourceBinding || {};
+      if (bound.assetId !== asset.id || existing.source?.sha256 !== asset.sha256 || Number(existing.source?.bytes) !== Number(asset.bytes)) {
+        throw canvasS1BindingError('CANVAS_S1_SOURCE_ALREADY_BOUND', '当前画布已绑定另一份源片；为避免旧证据误复用，不能静默替换。请新建项目后重新绑定。');
+      }
+      const resolved = await resolveProjectSource(existing, {verify:true});
+      return {project:existing, created:false, sourceBinding:{assetId:asset.id,sourceSha256:resolved.sha256,sourceBytes:Number(existing.source.bytes),rightsEventId:existing.rightsAuthority?.event_id || null,preflightStatus:existing.preflight?.status === 'passed' ? 'passed' : 'blocked',boundAt:bound.boundAt || existing.createdAt || null}};
+    }
+
+    const sourceName = safeName(asset.originalName || 'canvas-source.mp4');
+    const sourcePath = path.join(uploadsRoot, projectId + '-canvas-' + asset.id + '-' + sourceName);
+    const jobDir = path.join(jobsRoot, projectId);
+    if (await fsp.lstat(jobDir).catch(() => null) || await fsp.lstat(sourcePath).catch(() => null)) throw canvasS1BindingError('CANVAS_S1_SOURCE_BINDING_CONFLICT', '当前项目的源片绑定正在收敛，请稍后重试');
+    const now = new Date().toISOString();
+    let copied = false;
+    try {
+      await fsp.copyFile(asset.storedPath, sourcePath, fs.constants.COPYFILE_EXCL);
+      copied = true;
+      const copiedEvidence = await sha256StoredFile(sourcePath);
+      if (copiedEvidence.sha256 !== asset.sha256 || copiedEvidence.bytes !== Number(asset.bytes)) throw canvasS1BindingError('CANVAS_S1_SOURCE_COPY_INTEGRITY_FAILED', '原片复制校验失败', 500);
+      const project = canvasS1BoundProject({canvasProject,user,sourceAsset:asset,sourcePath,now});
+      const createdJobDir = await writeJobContract(project);
+      project.jobContract = path.join(createdJobDir, 'task.json');
+      await writeSourcePreflight(project);
+      projects.unshift(project);
+      await writeProjects(projects);
+      return {project,created:true,sourceBinding:{assetId:asset.id,sourceSha256:project.source.sha256,sourceBytes:Number(project.source.bytes),rightsEventId:project.rightsAuthority.event_id,preflightStatus:project.preflight?.status === 'passed' ? 'passed' : 'blocked',boundAt:now}};
+    } catch (error) {
+      await fsp.rm(jobDir, {recursive:true,force:true}).catch(() => {});
+      if (copied) await fsp.rm(sourcePath, {force:true}).catch(() => {});
+      throw error;
+    }
+  });
+}
+
+async function handleCanvasS1SourceBindingApi(request, response, pathname, user) {
+  const match = pathname.match(/^\/api\/canvas\/documents\/(redraw|script)\/([^/]+)\/s1-source-binding$/);
+  if (!match) return false;
+  if (request.method !== 'POST') { json(response, 405, {code:'METHOD_NOT_ALLOWED',error:'请求方法不允许'}); return true; }
+  try {
+    const projectKind = match[1];
+    const projectId = decodeURIComponent(match[2]);
+    const body = await readBodyJson(request);
+    const sourceAssetId = canvasText(body.sourceAssetId, 120);
+    if (!sourceAssetId) throw canvasS1BindingError('CANVAS_S1_SOURCE_ASSET_REQUIRED', '请先选择一个原片视频素材', 422);
+    const bound = await bindCanvasS1Source({user,projectKind,projectId,sourceAssetId,rightsConfirmed:body.rightsConfirmed === true});
+    json(response, 201, {code:'CANVAS_S1_SOURCE_BOUND',created:bound.created,sourceBinding:bound.sourceBinding,preflight:bound.project.preflight || null,runtime:bound.project.runtime || null,providerSubmitRequested:false,spendRequested:false});
+    return true;
+  } catch (error) {
+    json(response, error.httpStatus || 400, {code:error.code || 'CANVAS_S1_SOURCE_BINDING_FAILED',error:error.message || '画布原片绑定失败',providerSubmitRequested:false,spendRequested:false});
+    return true;
+  }
+}
+
 async function handleCanvasS1ChainApi(request, response, pathname, user) {
   const match = pathname.match(/^\/api\/canvas\/documents\/(redraw|script)\/([^/]+)\/s1-chain$/);
   if (!match) return false;
@@ -7193,7 +7315,16 @@ async function handleCanvasS1ChainApi(request, response, pathname, user) {
       const currentRevision = Number(current?.revision || 0);
       if (request.headers['if-match'] !== canvasEtag(currentRevision)) throw Object.assign(new Error('画布已在其他页面更新，请先重新载入。'), {code:'CANVAS_REVISION_CONFLICT',httpStatus:412});
       const currentDocument = normalizeCanvasDocument(current?.document, project);
-      const chain = canvasS1Chain.createChain({projectId,sourceAssetIds,rightsConfirmed:body.rightsConfirmed === true,preflightStatus:body.preflightStatus,existingNodes:currentDocument.nodes});
+      const step01Project = (await readProjects()).find(item => item.id === projectId && item.ownerId === user.id) || null;
+      const sourceBinding = step01Project?.canvasSourceBinding?.assetId && sourceAssetIds.length === 1 && sourceAssetIds[0] === step01Project.canvasSourceBinding.assetId ? {
+        assetId:step01Project.canvasSourceBinding.assetId,
+        sourceSha256:step01Project.source?.sha256,
+        sourceBytes:step01Project.source?.bytes,
+        rightsEventId:step01Project.rightsAuthority?.event_id,
+        preflightStatus:step01Project.preflight?.status,
+        boundAt:step01Project.canvasSourceBinding.boundAt
+      } : null;
+      const chain = canvasS1Chain.createChain({projectId,sourceAssetIds,rightsConfirmed:body.rightsConfirmed === true,preflightStatus:body.preflightStatus,sourceBinding,existingNodes:currentDocument.nodes});
       const document = normalizeCanvasDocument(canvasS1Chain.mergeChain(currentDocument, chain), project);
       const revision = currentRevision + 1;
       const record = {schemaVersion:'niannian.canvas-document.v1',projectId:project.id,projectKind,ownerId:user.id,revision,document,updatedAt:new Date().toISOString()};
@@ -8445,6 +8576,8 @@ async function handleApi(request, response, pathname) {
     if (handled) return;
   }
   if (pathname.startsWith('/api/canvas/documents/')) {
+    const s1SourceBindingHandled = await handleCanvasS1SourceBindingApi(request, response, pathname, user);
+    if (s1SourceBindingHandled) return;
     const s1ChainHandled = await handleCanvasS1ChainApi(request, response, pathname, user);
     if (s1ChainHandled) return;
     const handled = await handleCanvasDocumentApi(request, response, pathname, user);

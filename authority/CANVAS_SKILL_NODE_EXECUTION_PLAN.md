@@ -119,3 +119,15 @@ S0 已在候选分支实现，范围严格限定为画布文档持久化边界�
 证据：`npm run test:quality-gate` 通过 21/21，`npm run typecheck` 通过，`npm run lint` 通过，画布文档/生成/导演台 HTTP 合同测试通过。构建将在干净提交上复跑；本阶段没有真实 Provider 调用、费用、生产部署或用户素材写入。
 
 S0 仍不代表任何转绘 Skill 已达到“可生产”：S1 的真实 Step01 执行、S2/S3 的真实结果回资产库和 S4 的外部剪辑回读仍保持阻塞/候选状态。
+
+## 9. S1 画布源片绑定回读（2026-08-12）
+
+S1 的输入边界已从“画布节点保存”推进为“画布视频资产绑定到 Step01 项目源片”：
+
+- `POST /api/canvas/documents/redraw/:projectId/s1-source-binding` 只接受当前用户、当前转绘项目内的 `reference_video` 素材和明确权利确认。
+- 服务端复制同一资产字节到 Step01 `uploads/`，重新计算 SHA-256/字节数，并写入不可变 `project.source`、`rights_authority.json`、`task.json` 与预检账本；画布文档不保存本地路径、凭据或临时 URL。
+- 服务器媒体预检是唯一 `preflightStatus` 来源。客户端提交“已通过”不会绕过失败；有效 MP4 才能使原片节点成为 `ready`，无效视频保留阻塞和恢复状态。
+- 同一画布项目已经绑定另一份源片时拒绝静默替换，防止旧 Step01 证据跨源片复用；同一素材重复绑定是幂等读取。
+- 绑定成功不会提交 Provider、消耗费用或启动 Step01；Step01 仍须等待 Haika `hq_full` 完整证据链，Step02 仍只消费已验收 Step01 evidence。
+
+本阶段证据：`test_canvas_s1_chain_http.js` 覆盖权利门、同项目素材与 SHA 绑定、客户端预检伪造拒绝、有效 MP4 真实预检、幂等重放、节点 ready/blocked 投影、revision 冲突和无 Provider 提交；`test_studio_s1_chain_ui_contract.js` 覆盖 Studio 不再提供可伪造的预检下拉。当前没有真实 Step01 Provider/服务器执行、费用或生产部署。
