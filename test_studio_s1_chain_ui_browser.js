@@ -56,6 +56,8 @@ async function main() {
     const panel = page.locator('#s1-chain-panel');
     await panel.waitFor({state:'visible'});
     assert.equal(await panel.getByRole('button', {name:'准备 Step02 时间线'}).isDisabled(), true, 'Step02 stays disabled until Step01 evidence is verified');
+    assert.equal(await panel.locator('[data-s1-evidence]').isHidden(), true, 'evidence preview stays hidden before Step01 evidence is verified');
+    assert.equal(await panel.locator('[data-s1-evidence] img').count(), 0, 'blocked state must not render stale evidence frames');
     await assert.rejects(panel.getByRole('button', {name:'绑定原片并创建节点'}).click({timeout:300}), /Timeout|intercepted/, 'binding remains disabled until a source and rights confirmation exist');
     await panel.getByRole('radio', {name:/source\.mp4/}).check();
     await panel.getByRole('checkbox', {name:/我确认拥有/}).check();
