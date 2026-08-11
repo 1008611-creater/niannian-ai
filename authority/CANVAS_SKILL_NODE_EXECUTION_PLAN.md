@@ -141,6 +141,7 @@ S1 面板在创建分析任务前读取同一项目的服务器就绪状态：
 
 ## 11. S1 到 Step02 的状态投影与准备门（2026-08-12）
 
+
 画布不再把创建时的静态节点状态当作流程真相：
 
 - `GET /api/canvas/documents/redraw/:projectId/s1-readiness` 会从当前项目投影原片、Step01 和 Step02 节点状态。`evidence_ready` 才使 Step01 标为 `succeeded` 并解锁 Step02；候选回读是 `needs_review`，服务端 acceptance 才是 `succeeded`。
@@ -151,3 +152,11 @@ S1 面板在创建分析任务前读取同一项目的服务器就绪状态：
 - 绑定成功不会提交 Provider、消耗费用或启动 Step01；Step01 仍须等待 Haika `hq_full` 完整证据链，Step02 仍只消费已验收 Step01 evidence。
 
 本阶段证据：`test_canvas_s1_chain_http.js` 覆盖权利门、同项目素材与 SHA 绑定、客户端预检伪造拒绝、有效 MP4 真实预检、幂等重放、节点 ready/blocked 投影、revision 冲突和无 Provider 提交；`test_studio_s1_chain_ui_contract.js` 覆盖 Studio 不再提供可伪造的预检下拉。当前没有真实 Step01 Provider/服务器执行、费用或生产部署。
+
+## 12. Step02 候选安全回读（2026-08-12）
+
+- 画布新增 `GET /api/canvas/documents/redraw/:projectId/s1-step02-review` 只读回读接口。它要求当前项目的 Step01 状态为 `evidence_ready`，否则返回 `STEP01_EVIDENCE_REQUIRED`，不会读取候选或创建任务。
+- Step02 准备和回读统一经过 `publicCanvasS1Step02Review` 投影，只返回镜头时间、视觉事实、对白绑定、资产候选、阻塞和 acceptance 状态；不返回本地路径、临时 URL、凭据或 Provider 原始对象。
+- `providerSubmitRequested`、`spendRequested` 和 `realDelivery` 在两个响应中保持 `false`。候选仍是 `downstreamConsumable:false`，只有服务端 acceptance 才能解锁 Step04。
+
+证据：`test_canvas_s1_step02_review_api.js` 校验公共投影和敏感字段边界；`test_canvas_s1_chain_http.js` 校验 Step01 未就绪时准备与回读都被拒绝。该变更仍不代表真实 Step01/Step02 生产执行完成。

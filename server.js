@@ -6454,6 +6454,88 @@ function step02ApiStatus(error) {
   return 500;
 }
 
+function publicCanvasS1Step02Review(review) {
+  const candidate = review?.candidate || null;
+  const text = value => String(value || '').slice(0, 2000);
+  const numberMs = value => Number.isFinite(Number(value)) ? Math.round(Number(value) * 1000) : null;
+  return {
+    schemaVersion:'niannian_canvas_s1_step02_review_v1',
+    status:String(review?.status || 'not_prepared'),
+    projectId:review?.project_id || null,
+    transaction:review?.transaction ? {
+      status:String(review.transaction.status || ''),
+      transactionId:String(review.transaction.transaction_id || ''),
+      createdAt:review.transaction.created_at || null,
+      costGate:String(review.transaction.cost_gate || 'no_media_provider_or_spend')
+    } : null,
+    candidate:candidate ? {
+      status:String(candidate.status || 'candidate'),
+      downstreamConsumable:candidate.downstream_consumable === true,
+      sourceRows:(Array.isArray(candidate.sourceRows) ? candidate.sourceRows : []).map(row => ({
+        shotId:text(row.shot_id),
+        startMs:numberMs(row.source_start_sec),
+        endMs:numberMs(row.source_end_sec),
+        storyBeat:text(row.story_beat),
+        visualComposition:text(row.visual_composition),
+        blockingMovement:text(row.blocking_movement),
+        dialogueIds:Array.isArray(row.dialogue_ids) ? row.dialogue_ids.map(text).slice(0, 20) : []
+      })),
+      dialogueBindings:(Array.isArray(candidate.dialogueBindings) ? candidate.dialogueBindings : []).map(row => ({
+        dialogueId:text(row.dialogue_id),
+        startMs:numberMs(row.source_start_sec),
+        endMs:numberMs(row.source_end_sec),
+        onsetShot:text(row.onset_shot),
+        bestEvidenceShot:text(row.best_evidence_shot),
+        sourceSpeaker:text(row.source_speaker),
+        sourceText:text(row.source_text),
+        attributionStatus:text(row.speaker_attribution_status)
+      })),
+      visualFactCards:(Array.isArray(candidate.visualFactCards) ? candidate.visualFactCards : []).map(row => ({
+        factId:text(row.fact_id),
+        shots:Array.isArray(row.shots) ? row.shots.map(text).slice(0, 20) : [],
+        fact:text(row.fact)
+      })),
+      assetCandidates:(Array.isArray(candidate.assetCandidates) ? candidate.assetCandidates : []).map(row => ({
+        assetId:text(row.asset_id),
+        type:text(row.type),
+        firstSeenShot:text(row.first_seen_shot),
+        visualIdentity:text(row.visual_identity)
+      })),
+      hardSceneCandidates:Array.isArray(candidate.hardSceneCandidates) ? candidate.hardSceneCandidates.map(row => ({
+        sceneId:text(row.scene_id),
+        shots:Array.isArray(row.shots) ? row.shots.map(text).slice(0, 20) : [],
+        reason:text(row.reason)
+      })) : [],
+      rejectedEvidence:Array.isArray(candidate.rejectedEvidence) ? candidate.rejectedEvidence.map(row => ({
+        evidenceId:text(row.evidence_id),
+        reason:text(row.reason),
+        startMs:numberMs(row.source_start_sec),
+        endMs:numberMs(row.source_end_sec)
+      })) : [],
+      blockers:Array.isArray(candidate.blockers) ? candidate.blockers.map(text).slice(0, 50) : []
+    } : null,
+    acceptance:review?.acceptance ? {
+      status:String(review.acceptance.status || ''),
+      downstreamConsumable:review.acceptance.downstream_consumable === true,
+      acceptedAt:review.acceptance.accepted_at || null,
+      step04Ready:review.acceptance.step04_ready === true
+    } : null,
+    step04Ready:review?.step04_ready === true,
+    recovery:{
+      canPrepare:!review?.transaction,
+      canReview:Boolean(candidate),
+      canAccept:Boolean(candidate && review?.status === 'candidate_return_ready'),
+      providerSubmitRequested:false,
+      spendRequested:false,
+      nextAction:review?.status === 'step02_accepted'
+        ? 'Step04 只能消费服务端 acceptance manifest。'
+        : candidate
+          ? '请核对当前 Step02 候选；服务端接受前不会进入下游。'
+          : '等待 Step02 候选回读；当前准备动作不会提交媒体 Provider。'
+    }
+  };
+}
+
 function syncProjectStep02Projection(project, review) {
   const now = new Date().toISOString();
   const authorityRevision=String(review.authority?.sha256 || project.canonical?.authority_revision || project.analysis?.authorityRevisionId || project.analysis?.runId || '').trim() || null;
@@ -7385,9 +7467,29 @@ async function handleCanvasS1Step02PrepareApi(request, response, pathname, user)
     const review = await step02Vertical.prepareStep02({project,jobRoot:path.join(jobsRoot, project.id)});
     syncProjectStep02Projection(project, review);
     await writeProjects(projects);
-    return json(response, 200, {code:'CANVAS_S1_STEP02_PREPARED',review,readiness:canvasS1ReadinessProjection(project),providerSubmitRequested:false,spendRequested:false,realDelivery:false}, {'Cache-Control':'no-store'});
+    return json(response, 200, {code:'CANVAS_S1_STEP02_PREPARED',review:publicCanvasS1Step02Review(review),readiness:canvasS1ReadinessProjection(project),providerSubmitRequested:false,spendRequested:false,realDelivery:false}, {'Cache-Control':'no-store'});
   } catch (error) {
     return json(response, step02ApiStatus(error), {code:error.code || 'CANVAS_S1_STEP02_PREPARE_FAILED',error:error.message || 'Step02 时间线事务准备失败',providerSubmitRequested:false,spendRequested:false});
+  }
+}
+
+async function handleCanvasS1Step02ReviewApi(request, response, pathname, user) {
+  const match = pathname.match(/^\/api\/canvas\/documents\/(redraw|script)\/([^/]+)\/s1-step02-review$/);
+  if (!match) return false;
+  if (request.method !== 'GET') { json(response, 405, {code:'METHOD_NOT_ALLOWED',error:'请求方法不允许'}); return true; }
+  const projectKind = match[1];
+  const projectId = decodeURIComponent(match[2]);
+  const project = await canvasOwnedProject(user, projectKind, projectId);
+  if (!project) { json(response, 404, {code:'PROJECT_NOT_FOUND',error:'画布项目不存在'}); return true; }
+  if (project.analysis?.status !== 'evidence_ready') {
+    json(response, 409, {code:'STEP01_EVIDENCE_REQUIRED',error:'Step01 证据尚未就绪，不能读取 Step02 时间线候选',providerSubmitRequested:false,spendRequested:false});
+    return true;
+  }
+  try {
+    const review = await step02Vertical.loadReview({project,jobRoot:path.join(jobsRoot, project.id)});
+    return json(response, 200, {code:'CANVAS_S1_STEP02_REVIEW',review:publicCanvasS1Step02Review(review),providerSubmitRequested:false,spendRequested:false,realDelivery:false}, {'Cache-Control':'no-store'});
+  } catch (error) {
+    return json(response, step02ApiStatus(error), {code:error.code || 'CANVAS_S1_STEP02_REVIEW_FAILED',error:error.message || 'Step02 时间线候选暂不可读取',providerSubmitRequested:false,spendRequested:false});
   }
 }
 
@@ -8672,6 +8774,8 @@ async function handleApi(request, response, pathname) {
     if (s1SourceBindingHandled) return;
     const s1ReadinessHandled = await handleCanvasS1ReadinessApi(request, response, pathname, user);
     if (s1ReadinessHandled) return;
+    const s1Step02ReviewHandled = await handleCanvasS1Step02ReviewApi(request, response, pathname, user);
+    if (s1Step02ReviewHandled) return;
     const s1Step02PrepareHandled = await handleCanvasS1Step02PrepareApi(request, response, pathname, user);
     if (s1Step02PrepareHandled) return;
     const s1ChainHandled = await handleCanvasS1ChainApi(request, response, pathname, user);

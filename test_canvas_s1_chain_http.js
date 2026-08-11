@@ -97,6 +97,11 @@ async function run() {
   assert.equal(prematureStep02.body.code, 'STEP01_EVIDENCE_REQUIRED');
   assert.equal(prematureStep02.body.providerSubmitRequested, false);
   assert.equal(prematureStep02.body.spendRequested, false);
+  const prematureStep02Review = await request('/api/canvas/documents/redraw/' + project.id + '/s1-step02-review', {headers:headers()});
+  assert.equal(prematureStep02Review.response.status, 409, JSON.stringify(prematureStep02Review.body));
+  assert.equal(prematureStep02Review.body.code, 'STEP01_EVIDENCE_REQUIRED');
+  assert.equal(prematureStep02Review.body.providerSubmitRequested, false);
+  assert.equal(prematureStep02Review.body.spendRequested, false);
   const replayBinding = await request('/api/canvas/documents/redraw/' + project.id + '/s1-source-binding', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify({sourceAssetId,rightsConfirmed:true})});
   assert.equal(replayBinding.response.status, 201);
   assert.equal(replayBinding.body.created, false);
