@@ -8,13 +8,15 @@ const root = __dirname;
 const html = fs.readFileSync(path.join(root, 'studio', 'index.html'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'studio', 'assets', 's1-chain-ui.js'), 'utf8');
 
-assert.match(html, /assets\/s1-chain-ui\.js\?v=20260812-s1-readiness-r2/);
+assert.match(html, /assets\/s1-chain-ui\.js\?v=20260812-s1-timeline-projection-r3/);
 assert.match(source, /\/api\/canvas\/documents\//);
 assert.match(source, /\/s1-chain/);
 assert.match(source, /\/s1-source-binding/);
 assert.match(source, /\/s1-readiness/);
 assert.match(source, /\/step01-analysis/);
 assert.match(source, /data-s1-start/);
+assert.match(source, /data-s1-step02-prepare/);
+assert.match(source, /s1-step02-prepare/);
 assert.match(source, /if-match/);
 assert.match(source, /x-niannian-project-kind/);
 assert.match(source, /rightsConfirmed/);
@@ -24,4 +26,4 @@ assert.doesNotMatch(source, /<select data-s1-preflight>/);
 assert.doesNotMatch(source, /confirmProviderSpend/);
 assert.doesNotMatch(source, /\/canvas\/jobs/);
 
-console.log(JSON.stringify({ok:true,verified:['Studio loads the S1 control surface','current project assets are selected through the API','revision protection is sent on creation','server runtime readiness is visible before analysis start','the UI cannot submit a media provider job']}));
+console.log(JSON.stringify({ok:true,verified:['Studio loads the S1 control surface','current project assets are selected through the API','revision protection is sent on creation','server runtime readiness is visible before analysis start','Step02 prepares only after Step01 evidence is ready','the UI cannot submit a media provider job']}));

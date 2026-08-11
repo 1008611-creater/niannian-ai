@@ -88,8 +88,15 @@ async function run() {
   assert.equal(readiness.body.code, 'CANVAS_S1_READINESS');
   assert.equal(readiness.body.readiness.source.status, 'blocked');
   assert.equal(readiness.body.readiness.execution.ready, false);
+  assert.equal(readiness.body.readiness.nodes.find(item => item.id === 's1-step01-analysis').status, 'blocked');
+  assert.equal(readiness.body.readiness.nodes.find(item => item.id === 's1-step02-timeline').status, 'blocked');
   assert.equal(readiness.body.providerSubmitRequested, false);
   assert.equal(readiness.body.spendRequested, false);
+  const prematureStep02 = await request('/api/canvas/documents/redraw/' + project.id + '/s1-step02-prepare', {method:'POST',headers:headers({'content-type':'application/json'}),body:'{}'});
+  assert.equal(prematureStep02.response.status, 409, JSON.stringify(prematureStep02.body));
+  assert.equal(prematureStep02.body.code, 'STEP01_EVIDENCE_REQUIRED');
+  assert.equal(prematureStep02.body.providerSubmitRequested, false);
+  assert.equal(prematureStep02.body.spendRequested, false);
   const replayBinding = await request('/api/canvas/documents/redraw/' + project.id + '/s1-source-binding', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify({sourceAssetId,rightsConfirmed:true})});
   assert.equal(replayBinding.response.status, 201);
   assert.equal(replayBinding.body.created, false);
@@ -107,7 +114,7 @@ async function run() {
   assert.equal(reloaded.body.document.nodes.find(item => item.id === 's1-step02-timeline').status, 'blocked');
   const stale = await request('/api/canvas/documents/redraw/' + project.id + '/s1-chain', {method:'POST',headers:headers({'content-type':'application/json','if-match':'"canvas-rev-0"'}),body:'{}'});
   assert.equal(stale.response.status, 412);
-  const verified = ['canvas video binding copies and hashes the exact same-project source','rights confirmation is mandatory','server preflight result overrides client text','S1 readiness exposes typed source/runtime blockers without provider work'];
+  const verified = ['canvas video binding copies and hashes the exact same-project source','rights confirmation is mandatory','server preflight result overrides client text','S1 readiness exposes typed source/runtime blockers without provider work','Step02 cannot prepare before immutable Step01 evidence'];
   if (validVideo) {
     const validInitial = await request('/api/canvas/documents/redraw/' + validProject.id, {headers:headers()});
     const validBinding = await request('/api/canvas/documents/redraw/' + validProject.id + '/s1-source-binding', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify({sourceAssetId:validAssetId,rightsConfirmed:true})});

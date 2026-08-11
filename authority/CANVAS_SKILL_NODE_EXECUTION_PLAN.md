@@ -140,6 +140,16 @@ S1 面板在创建分析任务前读取同一项目的服务器就绪状态：
 - 未配置时保持明确阻塞，避免用户点击后才得到后台失败；状态接口与前端都不把“配置完成”误写成“证据已生成”。
 
 证据：运行时就绪单测、S1 HTTP 合同测试、桌面 `1440x900` 与移动 `390x844` 浏览器测试通过。该阶段没有 Provider 请求、费用、真实用户媒体或生产部署；S1 仍须通过一次授权的真实服务器分析、Step02 回读和体验验收，才可标记为生产可用。
+
+## 11. S1 到 Step02 的状态投影与准备门（2026-08-12）
+
+画布不再把创建时的静态节点状态当作流程真相：
+
+- `GET /api/canvas/documents/redraw/:projectId/s1-readiness` 会从当前项目投影原片、Step01 和 Step02 节点状态。`evidence_ready` 才使 Step01 标为 `succeeded` 并解锁 Step02；候选回读是 `needs_review`，服务端 acceptance 才是 `succeeded`。
+- Studio 只在 Step01 evidence 已验证时启用“准备 Step02 时间线”。`POST /api/canvas/documents/redraw/:projectId/s1-step02-prepare` 仅创建可恢复的 Step02 事务；它不提交媒体 Provider、不消费费用、不把候选误写为 acceptance。
+- Step01 未验证时该入口返回 `409 STEP01_EVIDENCE_REQUIRED`，并回读 `providerSubmitRequested=false`、`spendRequested=false`。用户仍必须对后续实际 Step02 执行、候选审阅和接受作明确动作。
+
+证据：`test_canvas_s1_timeline_projection.js` 覆盖运行时阻塞、evidence 解锁、候选/接受状态区别；`test_canvas_s1_chain_http.js` 覆盖 HTTP 提前启动拒绝；Studio 桌面/移动浏览器测试覆盖禁用态和无横向溢出。此改动不代表真实 Step01 或 Step02 已生产跑通，真实闭环仍需要授权服务器执行和结果回读。
 - 绑定成功不会提交 Provider、消耗费用或启动 Step01；Step01 仍须等待 Haika `hq_full` 完整证据链，Step02 仍只消费已验收 Step01 evidence。
 
 本阶段证据：`test_canvas_s1_chain_http.js` 覆盖权利门、同项目素材与 SHA 绑定、客户端预检伪造拒绝、有效 MP4 真实预检、幂等重放、节点 ready/blocked 投影、revision 冲突和无 Provider 提交；`test_studio_s1_chain_ui_contract.js` 覆盖 Studio 不再提供可伪造的预检下拉。当前没有真实 Step01 Provider/服务器执行、费用或生产部署。
