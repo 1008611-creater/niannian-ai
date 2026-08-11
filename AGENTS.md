@@ -127,6 +127,42 @@ When a task says `继续`, continue from the current approved scope and this dir
   private-repository plan cannot enforce it technically. No approving-review
   count is configured unless the product owner explicitly changes that decision.
 
+## Three-Gate PR Acceptance And Exact-Commit Preview
+
+- Every website pull request must pass these gates in order: Technical,
+  Experience, then Release. A failed or incomplete gate stops progression to
+  the next gate. Reading code, reviewing a diff, screenshots, an HTTP `200`, or
+  a general confidence statement cannot substitute for any required result.
+- Technical gate: run the repository's tests, TypeScript typecheck, ESLint, and
+  production build against the current PR HEAD SHA, and require every command
+  and the PR CI checks to pass. A missing script, missing toolchain, skipped
+  command, or check against another commit is an incomplete gate, not a manual
+  pass. Record the exact PR HEAD SHA and command/check results in the PR.
+- Experience gate: publish an independent HTTPS preview built from that exact
+  PR HEAD SHA. It must not reuse or overwrite the production directory,
+  process, data, or URL, and the running preview must expose a readable Git SHA
+  or release identity that proves which commit it serves. Give the product
+  owner the preview URL and the desktop and mobile core-path checklist; the
+  product owner performs both passes. CI screenshots, a local candidate, the
+  production site, or a preview from another SHA is not acceptance evidence.
+- Any new PR commit, rebase, force update, or merge-base change that changes the
+  PR HEAD invalidates the prior preview and Experience acceptance. Rebuild the
+  preview from the new exact SHA and repeat desktop and mobile acceptance.
+- Release gate: before merge, report the exact accepted SHA, user-visible
+  changes, known risks, rollback point, Technical-gate results, preview URL,
+  and desktop/mobile Experience status. Merge and production deployment are
+  authorized only when the product owner replies exactly `验收通过，发布` for
+  that candidate. Replies such as `继续`, `可以`, `授权`, or `去做吧` do not
+  satisfy this release gate.
+- After authorization, verify that the merge commit's tree/content matches the
+  accepted PR HEAD. If it differs, stop and repeat the exact-commit preview
+  acceptance. Build production only from the verified merged `main`, retain
+  the named previous release as the rollback point, deploy, and read back the
+  real production core path before reporting delivery.
+- This section supersedes any older project rule that could be read as allowing
+  merge or production deployment solely because CI passed. CI completion is
+  evidence for the Technical gate only.
+
 ## Engineering Baseline
 
 - Treat GitHub `main` as authoritative only after the focused pull-request CI
