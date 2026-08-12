@@ -5,7 +5,7 @@ const path = require('node:path');
 const root = __dirname;
 const html = fs.readFileSync(path.join(root, 'studio', 'index.html'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'studio', 'assets', 's2-image2-ui.js'), 'utf8');
-assert.match(html, /assets\/s2-image2-ui\.js\?v=20260812-s2-image2-ui-r1/);
+assert.match(html, /assets\/s2-image2-ui\.js\?v=20260812-s2-image2-execution-r2/);
 assert.match(source, /\/api\/canvas\/provider-status/);
 assert.match(source, /\/api\/projects\/.*\/canvas\/jobs/);
 assert.match(source, /\/dry-run/);

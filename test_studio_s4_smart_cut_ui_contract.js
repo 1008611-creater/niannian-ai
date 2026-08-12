@@ -5,7 +5,7 @@ const path = require('node:path');
 const root = __dirname;
 const html = fs.readFileSync(path.join(root, 'studio', 'index.html'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'studio', 'assets', 's4-smart-cut-ui.js'), 'utf8');
-assert.match(html, /assets\/s4-smart-cut-ui\.js\?v=20260812-s4-smart-cut-ui-r1/);
+assert.match(html, /assets\/s4-smart-cut-ui\.js\?v=20260812-s4-smart-cut-execution-r2/);
 assert.match(source, /\/api\/studio\/projects\//);
 assert.match(source, /\/smart-cut\/jobs/);
 assert.match(source, /\/dry-run/);

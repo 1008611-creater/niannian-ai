@@ -5,7 +5,7 @@ const path = require('node:path');
 const root = __dirname;
 const html = fs.readFileSync(path.join(root, 'studio', 'index.html'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'studio', 'assets', 's3-animate-ui.js'), 'utf8');
-assert.match(html, /assets\/s3-animate-ui\.js\?v=20260812-s3-animate-ui-r1/);
+assert.match(html, /assets\/s3-animate-ui\.js\?v=20260812-s3-animate-execution-r2/);
 assert.match(source, /\/api\/canvas\/provider-status/);
 assert.match(source, /\/api\/projects\/.*\/assets/);
 assert.match(source, /\/api\/projects\/.*\/canvas\/jobs/);
