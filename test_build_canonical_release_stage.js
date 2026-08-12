@@ -3,13 +3,14 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { buildStage, runtimeFiles, activeBrandAssetFromIndex, committedSourcePaths } = require('./build_canonical_release_stage');
-const { verifiedCanonicalWorktree } = require('./verify_canonical_release_gate');
+const { verifiedGitHubCheckout, verifiedCanonicalWorktree } = require('./verify_canonical_release_gate');
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'niannian-release-stage-'));
 const candidateRoot = path.join(temporaryRoot, 'candidate');
 
 try {
-  assert.equal(verifiedCanonicalWorktree(__dirname), true);
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'PROJECT_MANIFEST.json'), 'utf8'));
+  assert.equal(verifiedGitHubCheckout() || verifiedCanonicalWorktree(manifest.source_of_truth.path), true);
   const result = buildStage(candidateRoot);
   const packageManifest = JSON.parse(fs.readFileSync(result.package_manifest, 'utf8'));
   const summary = JSON.parse(fs.readFileSync(path.join(candidateRoot, 'release-candidate-summary.json'), 'utf8'));
