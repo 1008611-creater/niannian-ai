@@ -9,7 +9,7 @@ const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'niannian-release-st
 const candidateRoot = path.join(temporaryRoot, 'candidate');
 
 try {
-  assert.equal(verifiedCanonicalWorktree('E:\\codex\\niannianai\\niannianai'), true);
+  assert.equal(verifiedCanonicalWorktree(__dirname), true);
   const result = buildStage(candidateRoot);
   const packageManifest = JSON.parse(fs.readFileSync(result.package_manifest, 'utf8'));
   const summary = JSON.parse(fs.readFileSync(path.join(candidateRoot, 'release-candidate-summary.json'), 'utf8'));
