@@ -11,9 +11,11 @@ async function run() {
     indexPath:path.join(root, 'assets.json'),
     storageRoot:path.join(root, 'assets'),
     maxBytes:1024 * 1024,
+    maxReferenceVideoBytes:2 * 1024 * 1024,
     maxOutputBytes:2 * 1024 * 1024
   });
   assert.equal(service.maxBytes, 1024 * 1024);
+  assert.equal(service.maxReferenceVideoBytes, 2 * 1024 * 1024);
   assert.equal(service.maxOutputBytes, 2 * 1024 * 1024);
   const mp4 = Buffer.alloc(1536 * 1024);
   mp4.writeUInt32BE(32, 0);
@@ -25,8 +27,10 @@ async function run() {
   assert.equal(generated.created, true);
   assert.equal(generated.asset.kind, 'generated_video');
   assert.equal(generated.asset.bytes, mp4.length);
+  const reference = await service.registerBuffer({ownerId:'USR-VIDEO-A',projectId:'NN-VIDEO-A',projectKind:'redraw',kind:'reference_video',format:'mp4',originalName:'source.mp4',bytes:mp4});
+  assert.equal(reference.asset.kind, 'reference_video');
   await assert.rejects(
-    () => service.registerBuffer({ownerId:'USR-VIDEO-A',projectId:'NN-VIDEO-A',projectKind:'redraw',kind:'reference_video',format:'mp4',originalName:'too-big.mp4',bytes:mp4}),
+    () => service.registerBuffer({ownerId:'USR-VIDEO-A',projectId:'NN-VIDEO-A',projectKind:'redraw',kind:'reference_video',format:'mp4',originalName:'too-big.mp4',bytes:Buffer.alloc(2 * 1024 * 1024 + 1)}),
     error => error && error.code === 'CANVAS_ASSET_METADATA_INVALID'
   );
   console.log('CANVAS_GENERATED_VIDEO_ASSET_CONTRACT_OK');
