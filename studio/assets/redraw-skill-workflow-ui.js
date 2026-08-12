@@ -141,7 +141,11 @@
 
     launcher.addEventListener('click',createWorkflow); inspector.querySelector('.rw-close').addEventListener('click',function () { inspector.hidden = true; });
     inspector.querySelector('[data-rw-action]').addEventListener('click',function (event) { var target = document.getElementById(event.currentTarget.dataset.target); if (!target) return; if (target.id === 's1-chain-panel') { target.classList.add('rw-executor-open'); target.hidden = false; } else target.click(); inspector.hidden = true; });
-    document.addEventListener('click',function (event) { var article = event.target instanceof Element ? event.target.closest('[data-node-id]') : null; if (!article || !documentState) return; var id = article.getAttribute('data-node-id'); var node = workflowNodes(documentState).find(function (item) { return item.id === id; }); if (node) render(node); },true);
+    document.addEventListener('click',function (event) {
+      var path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+      var article = path.find(function (target) { return target instanceof Element && target.matches('[data-node-id]'); }) || (event.target instanceof Element ? event.target.closest('[data-node-id]') : null);
+      if (!article || !documentState) return; var id = article.getAttribute('data-node-id'); var node = workflowNodes(documentState).find(function (item) { return item.id === id; }); if (node) render(node);
+    },true);
     function refreshRoute() { load().catch(function (error) { launcher.textContent = '转绘工作流状态读取失败'; launcher.title = error.message || '读取失败'; }); }
     window.addEventListener('hashchange',refreshRoute); window.addEventListener('popstate',refreshRoute);
     refreshRoute(); setTimeout(refreshRoute,0);
