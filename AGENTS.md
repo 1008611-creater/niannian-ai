@@ -66,6 +66,7 @@ This directory is the canonical source for NianNian AI's Haika server execution 
 ## Server Execution Constraints
 
 - Step01 source-video analysis runs only on Haika through the server Responses executor. Mac, Windows desktop bridges, and desktop App tasks are historical compatibility paths, not production dependencies.
+- The tracked repository does not carry the historical `bridge/mac-employee-training/` runtime. Any legacy desktop import must fail closed with a typed blocker; it must never prevent the Haika server executor from loading or be presented as a production fallback.
 - The server may use only the task's allowlisted routes, current source hash, and source-bound analysis authorization. It must not treat the model channel as media-provider authorization.
 - Keep credentials in systemd environment files only. Do not record them in task contracts, artifacts, receipts, logs, or the website.
 - For production media, retain the route's required preflight, evidence validation, ledger, and website projection before calling work delivered.

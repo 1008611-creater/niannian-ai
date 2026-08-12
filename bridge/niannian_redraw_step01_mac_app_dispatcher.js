@@ -6,7 +6,7 @@ const path=require('path');
 const {AppServerClient,CODEX_PATH,PROJECT_ROOT,THREADS,assertCompletedTurn,hasActiveTurn,inspectEmployeeModelChannel,inspectNativeAccountRuntime,safeTurnFailureDiagnostic,summarizeThread}=require('./mac_codex_app_employee_bootstrap');
 const {activeProfile}=require('./niannian_employee_model_profiles');
 const step01Phase=require('./niannian_redraw_step01_mac_app_phase');
-const hqExecutor=require('./mac-employee-training/execute_redraw_step01_hq_full');
+const hqExecutor=require('./niannian_step01_legacy_runtime_guard');
 
 async function readJson(filePath){return JSON.parse(await fsp.readFile(filePath,'utf8'));}
 async function writeJson(filePath,value){const temp=filePath+'.tmp-'+process.pid;await fsp.writeFile(temp,JSON.stringify(value,null,2)+'\n','utf8');await fsp.rename(temp,filePath);}

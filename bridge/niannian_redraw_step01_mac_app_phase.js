@@ -17,7 +17,7 @@ const REQUIRED_CAPABILITY_KEYS=Object.freeze(['credential:mimo_asr','credential:
 const MAC_HQ_GATE_PATH=MAC_PROJECT+'/output/mac-employee-training/mac-step01-hq-full-gate-receipt.json';
 
 async function validateMacToolchainContract(...args){
-  const {validateToolchainContract}=require('./mac-employee-training/execute_redraw_step01_hq_full');
+  const {validateToolchainContract}=require('./niannian_step01_legacy_runtime_guard');
   return validateToolchainContract(...args);
 }
 
@@ -132,6 +132,11 @@ async function verifyExisting(root,manifestSha,phase){
 }
 async function validateWindowsMirror(toolchain,toolchainPath,hqGatePath,hqGateEvidence){
   const root=path.resolve(__dirname,'..'),candidatePath=path.join(__dirname,'mac-employee-training','step01_hq_full_toolchain_contract.json');
+  if (!fs.existsSync(candidatePath)) {
+    const error = new Error('历史桌面 Step01 运行时未安装；请使用 Haika 服务器执行器');
+    error.code = 'STEP01_LEGACY_RUNTIME_NOT_INSTALLED';
+    throw error;
+  }
   const mirrors={
     candidate_contract:candidatePath,
     mac_v2_install_receipt:path.join(root,'output','mac-employee-training','mac-skill-bundle-v2-install-receipt.json'),

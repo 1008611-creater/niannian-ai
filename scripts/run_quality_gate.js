@@ -3,6 +3,7 @@
 const {spawnSync} = require('node:child_process');
 
 const tests = [
+  'test_step01_legacy_runtime_guard.js',
   'test_studio_root_module_identity.js',
   'test_r3f_portal_cleanup.js',
   'test_web_canvas_persistence_binding.js',
