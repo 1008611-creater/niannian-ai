@@ -11,15 +11,15 @@ const STATUS = new Set(['draft', 'blocked', 'ready', 'queued', 'running', 'needs
 const KINDS = new Set(['intent', 'source_input', 'analysis', 'timeline', 'adaptation', 'character', 'scene', 'shot', 'reference', 'image', 'video', 'smart_cut', 'director', 'delivery', 'note', 'text', 'skill']);
 
 const SKILLS = Object.freeze({
-  'mx-shortdrama-00-router': {version: '1.0.0', kinds: ['intent', 'source_input', 'skill'], inputs: ['source_video', 'rights_declaration'], outputs: ['source_asset', 'preflight_report']},
-  'mx-shortdrama-01-frame-extract': {version: '1.0.0', kinds: ['analysis', 'skill'], inputs: ['source_video'], outputs: ['evidence_manifest', 'shot_frames']},
-  'mx-shortdrama-02-source-timeline': {version: '1.0.0', kinds: ['timeline', 'skill'], inputs: ['evidence_manifest'], outputs: ['accepted_timeline']},
-  'mx-shortdrama-03-mexico-localize': {version: '1.0.0', kinds: ['adaptation', 'skill'], inputs: ['accepted_timeline'], outputs: ['adaptation_candidate']},
-  'mx-shortdrama-04-character-assets': {version: '1.0.0', kinds: ['character', 'scene', 'reference', 'skill'], inputs: ['accepted_timeline'], outputs: ['reference_asset']},
+  'mx-shortdrama-00-router': {version: '1.0.0', kinds: ['intent', 'source_input', 'video', 'skill'], inputs: ['source_video', 'rights_declaration'], outputs: ['source_asset', 'preflight_report']},
+  'mx-shortdrama-01-frame-extract': {version: '1.0.0', kinds: ['analysis', 'text', 'skill'], inputs: ['source_video'], outputs: ['evidence_manifest', 'shot_frames']},
+  'mx-shortdrama-02-source-timeline': {version: '1.0.0', kinds: ['timeline', 'text', 'skill'], inputs: ['evidence_manifest'], outputs: ['accepted_timeline']},
+  'mx-shortdrama-03-mexico-localize': {version: '1.0.0', kinds: ['adaptation', 'text', 'skill'], inputs: ['accepted_timeline'], outputs: ['adaptation_candidate']},
+  'mx-shortdrama-04-character-assets': {version: '1.0.0', kinds: ['character', 'scene', 'reference', 'image', 'skill'], inputs: ['accepted_timeline'], outputs: ['reference_asset']},
   'image2-storyboard-video': {version: '1.0.0', kinds: ['image', 'reference', 'skill'], inputs: ['prompt', 'reference_asset'], outputs: ['image_asset']},
   'minimaxh3skill': {version: '1.0.0', kinds: ['video', 'skill'], inputs: ['image_asset', 'prompt'], outputs: ['video_asset']},
   'runninghub-animate-motion-transfer': {version: '1.0.0', kinds: ['video', 'skill'], inputs: ['image_asset', 'motion_video'], outputs: ['video_asset']},
-  'mx-shortdrama-production-harness': {version: '1.0.0', kinds: ['director', 'delivery', 'smart_cut', 'skill'], inputs: ['project_assets'], outputs: ['editor_session', 'delivery_asset']},
+  'mx-shortdrama-production-harness': {version: '1.0.0', kinds: ['director', 'delivery', 'smart_cut', 'text', 'video', 'output', 'skill'], inputs: ['project_assets'], outputs: ['editor_session', 'delivery_asset']},
   'niannian-text-generation': {version: '1.0.0', kinds: ['text', 'note', 'skill'], inputs: ['prompt'], outputs: ['text_result']}
 });
 

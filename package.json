@@ -65,6 +65,7 @@
     "test:canvas-h3-runtime": "node test_canvas_h3_runtime.js",
     "test:canvas-animate-runtime": "node test_canvas_animate_runtime.js",
     "test:studio-s4-smart-cut-ui": "node test_studio_s4_smart_cut_ui_contract.js && node test_studio_s4_smart_cut_ui_browser.js",
+    "test:studio-redraw-skill-workflow": "node test_studio_redraw_skill_workflow_contract.js && node test_studio_redraw_skill_workflow_browser.js",
     "test:nomi-h3-multiref": "node test_nomi_h3_multiref_contract.js",
     "test:browser-smoke": "playwright test test_studio_clean_browser.spec.js --reporter=line",
     "test:project-dispatch-browser": "node test_project_dispatch_browser.js",

@@ -1,0 +1,18 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = __dirname;
+const html = fs.readFileSync(path.join(root, 'studio', 'index.html'), 'utf8');
+const source = fs.readFileSync(path.join(root, 'studio', 'assets', 'redraw-skill-workflow-ui.js'), 'utf8');
+assert.match(html, /redraw-skill-workflow-ui\.js\?v=20260812-native-redraw-workflow-r1/);
+assert.match(source, /\/api\/studio\/projects\//);
+assert.match(source, /generationCanvas/);
+assert.match(source, /nomi-rev-/);
+assert.match(source, /添加转绘工作流/);
+assert.match(source, /definitions = \[/);
+assert.equal((source.match(/key:'[^']+',kind:/g) || []).length, 12);
+for (const skill of ['mx-shortdrama-00-router','mx-shortdrama-01-frame-extract','mx-shortdrama-02-source-timeline','mx-shortdrama-03-mexico-localize','mx-shortdrama-04-character-assets','image2-storyboard-video','minimaxh3skill','runninghub-animate-motion-transfer','mx-shortdrama-production-harness']) assert.match(source, new RegExp(skill));
+assert.match(source, /inputPorts/); assert.match(source, /outputPorts/); assert.match(source, /parameters/); assert.match(source, /assetRefs/); assert.match(source, /preview/); assert.match(source, /recovery/);
+assert.doesNotMatch(source, /confirmProviderSpend|\/authorize|api.?key|token|secret/i);
+console.log(JSON.stringify({ok:true,verified:['Studio loads the native redraw workflow entry','the template defines 12 persisted generationCanvas nodes','nodes expose Skill, input, output, parameters, assets, preview and recovery contracts','creation does not call a paid Provider endpoint']}));
