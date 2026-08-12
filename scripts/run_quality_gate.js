@@ -11,6 +11,7 @@ const tests = [
   'test_canvas_s1_step02_review_api.js',
   'test_studio_s1_chain_ui_contract.js',
   'test_studio_s2_image2_ui_contract.js',
+  'test_studio_s3_animate_ui_contract.js',
   'test_step01_server_readiness.js',
   'test_canvas_s1_timeline_projection.js',
   'test_web_runtime_adapter.js',
