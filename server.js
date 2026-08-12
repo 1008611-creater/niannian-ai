@@ -8400,7 +8400,7 @@ async function launchSmartCutEditorJob(job, sourceAsset) {
 
 async function handleSmartCutApi(request, response, pathname, user) {
   const sessionMatch = pathname.match(/^\/api\/projects\/([^/]+)\/smart-cut\/sessions$/);
-  const jobMatch = pathname.match(/^\/api\/projects\/([^/]+)\/smart-cut\/jobs(?:\/([^/]+))?(?:\/(dry-run))?$/);
+  const jobMatch = pathname.match(/^\/api\/projects\/([^/]+)\/smart-cut\/jobs(?:\/([^/]+))?(?:\/(dry-run|launch))?$/);
   const match = sessionMatch || jobMatch;
   if (!match) return false;
   const projectId = decodeURIComponent(match[1]);
@@ -8454,6 +8454,16 @@ async function handleSmartCutApi(request, response, pathname, user) {
       const job = await smartCutJobService.getOwned(user.id, projectId, jobId);
       if (!job) return json(response, 404, {code:'SMART_CUT_JOB_NOT_FOUND',error:'智能剪辑任务不存在'});
       return json(response, 200, {code:'SMART_CUT_DRY_RUN_READY',job:smartCutJobService.publicJob(job),dryRun:smartCutJobService.dryRunContract(job),providerSubmitEnabled:smartCutBridgeConfigured()}, {'Cache-Control':'no-store'});
+    }
+    if (jobId && action === 'launch' && request.method === 'POST') {
+      const job = await smartCutJobService.getOwned(user.id, projectId, jobId);
+      if (!job) return json(response, 404, {code:'SMART_CUT_JOB_NOT_FOUND',error:'智能剪辑任务不存在'});
+      if (job.editorProjectId) return json(response, 200, {code:'SMART_CUT_EDITOR_REUSED',idempotent:true,job:smartCutJobService.publicJob(job),providerSubmitEnabled:smartCutBridgeConfigured()}, {'Cache-Control':'no-store'});
+      if (job.status !== 'preparing') return json(response, 409, {code:'SMART_CUT_JOB_NOT_LAUNCHABLE',error:'当前智能剪辑任务不能创建外部工程'});
+      const sourceAsset = await canvasAssetService.getOwned(user.id, projectId, job.sourceVideoAssetId);
+      if (!sourceAsset || sourceAsset.projectKind !== owned.projectKind || !sourceAsset.mimeType.startsWith('video/')) return json(response, 422, {code:'SMART_CUT_SOURCE_VIDEO_REQUIRED',error:'智能剪辑主视频不存在或类型不匹配'});
+      const launched = await launchSmartCutEditorJob(job, sourceAsset);
+      return json(response, 202, {code:'SMART_CUT_EDITOR_LAUNCHED',idempotent:false,job:smartCutJobService.publicJob(launched),providerSubmitEnabled:smartCutBridgeConfigured()}, {'Cache-Control':'no-store'});
     }
     if (action === 'session' && request.method === 'POST') {
       const job = await smartCutJobService.getOwned(user.id, projectId, canvasText(body.jobId, 120));

@@ -100,16 +100,26 @@ async function run() {
   await waitForApp();
 
   const endpoint = `${appUrl}/api/projects/NN-SMART-CUT-A/smart-cut/jobs`;
-  const preparedResponse = await fetch(endpoint, {method:'POST',headers:headers('smart-cut-token-a',{'content-type':'application/json','x-niannian-project-kind':'redraw','idempotency-key':'smart-cut-http-0001'}),body:JSON.stringify({nodeId:'smart-cut-node',execute:true})});
+  const preparedResponse = await fetch(endpoint, {method:'POST',headers:headers('smart-cut-token-a',{'content-type':'application/json','x-niannian-project-kind':'redraw','idempotency-key':'smart-cut-http-0001'}),body:JSON.stringify({nodeId:'smart-cut-node',execute:false})});
   const prepared = await preparedResponse.json();
   assert.equal(preparedResponse.status, 201, JSON.stringify(prepared));
-  assert.equal(prepared.job.status, 'ready_for_review');
-  assert.equal(prepared.job.editorProjectId, 'editor-project-smart-cut');
+  assert.equal(prepared.job.status, 'preparing');
+  assert.equal(prepared.job.editorProjectId, null);
   assert.equal(prepared.dryRun.pipeline.asr, 'mimo-asr');
   assert.equal(prepared.dryRun.pipeline.alignment, 'Qwen3-ForcedAligner-0.6B');
-  assert.equal(imported.source.assetId, source.id);
 
   const jobId = prepared.job.id;
+  const launchedResponse = await fetch(`${endpoint}/${jobId}/launch`, {method:'POST',headers:headers('smart-cut-token-a',{'content-type':'application/json','x-niannian-project-kind':'redraw'}),body:JSON.stringify({projectKind:'redraw'})});
+  const launched = await launchedResponse.json();
+  assert.equal(launchedResponse.status, 202, JSON.stringify(launched));
+  assert.equal(launched.job.status, 'ready_for_review');
+  assert.equal(launched.job.editorProjectId, 'editor-project-smart-cut');
+  assert.equal(imported.source.assetId, source.id);
+
+  const reusedResponse = await fetch(`${endpoint}/${jobId}/launch`, {method:'POST',headers:headers('smart-cut-token-a',{'content-type':'application/json','x-niannian-project-kind':'redraw'}),body:JSON.stringify({projectKind:'redraw'})});
+  const reused = await reusedResponse.json();
+  assert.equal(reusedResponse.status, 200, JSON.stringify(reused));
+  assert.equal(reused.idempotent, true);
   const sessionResponse = await fetch(`${appUrl}/api/projects/NN-SMART-CUT-A/smart-cut/sessions`, {method:'POST',headers:headers('smart-cut-token-a',{'content-type':'application/json','x-niannian-project-kind':'redraw'}),body:JSON.stringify({jobId})});
   const session = await sessionResponse.json();
   assert.equal(sessionResponse.status, 200, JSON.stringify(session));
