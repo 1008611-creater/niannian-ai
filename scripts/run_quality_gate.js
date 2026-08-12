@@ -25,6 +25,8 @@ const tests = [
   'test_canvas_generation_http.js',
   'test_canvas_assets_http.js',
   'test_canvas_generated_video_assets.js',
+  'test_smart_cut_http.js',
+  'test_studio_s4_smart_cut_ui_contract.js',
   'test_project_library_rows.js',
   'test_pwa_shell.js',
   'test_release_identity.js',
