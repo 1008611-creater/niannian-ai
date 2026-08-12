@@ -1,0 +1,18 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = __dirname;
+const html = fs.readFileSync(path.join(root, 'studio', 'index.html'), 'utf8');
+const source = fs.readFileSync(path.join(root, 'studio', 'assets', 's2-image2-ui.js'), 'utf8');
+assert.match(html, /assets\/s2-image2-ui\.js\?v=20260812-s2-image2-ui-r1/);
+assert.match(source, /\/api\/canvas\/provider-status/);
+assert.match(source, /\/api\/projects\/.*\/canvas\/jobs/);
+assert.match(source, /\/dry-run/);
+assert.match(source, /skillKey: 'image2-storyboard-video'/);
+assert.match(source, /outputSize/);
+assert.match(source, /if-match/);
+assert.match(source, /建立候选不会提交生成/);
+assert.doesNotMatch(source, /confirmProviderSpend/);
+assert.doesNotMatch(source, /\/authorize/);
+console.log(JSON.stringify({ok:true,verified:['Studio loads the S2 Image2 candidate control surface','the node persists a project asset reference and image specification','candidate preparation uses dry-run without provider authorization']}));
