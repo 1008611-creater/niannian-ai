@@ -85,9 +85,10 @@ function hqSkillRoots(env = process.env) {
   return {step01, step02};
 }
 function hqCapabilities(env = process.env) {
-  const keys = ['MIMO_API_KEY', 'PADDLEOCR_API_TOKEN', 'NIANNIAN_STEP01_GPT_API_KEY'];
+  const keys = ['MIMO_API_KEY', 'PADDLEOCR_API_TOKEN'];
   const missing = keys.filter(key => !String(env[key] || '').trim());
   if (missing.length) throw coded('STEP01_HQ_CREDENTIALS_MISSING', '完整原片分析服务尚未配置');
+  modelConfigs(env);
   return {credentials_configured:true, required_services:['mimo_asr', 'paddle_ocr', 'gpt_5_6'], missing:[]};
 }
 async function runHqWorker({sourcePath, root, project, analysisRun, env = process.env}) {
@@ -126,7 +127,7 @@ async function attachHqVisualFacts({root, manifest, project, analysisRun, env, f
     const evidence = await fileEvidence(filePath);
     if (evidence.sha256 !== frame.sha256 || evidence.bytes !== frame.bytes) throw coded('STEP01_HQ_FRAME_HASH_INVALID', '真实镜头关键帧哈希不一致');
   }
-  const visual = await analyzeFramesWithRetry({config:modelConfig(env),root,project,analysisRun,timeline,frames,fetchImpl});
+  const visual = await analyzeFramesWithRetry({configs:modelConfigs(env),root,project,analysisRun,timeline,frames,fetchImpl});
   const visualFacts = await writeJsonArtifact(root, 'artifacts/visual_facts.json', {schema_version:'niannian_haika_step01_visual_facts_v1',project_id:project.id,analysis_run_id:analysisRun.id,source_sha256:project.source.sha256,model:visual.model,segments:visual.segments});
   manifest.visual_facts = visualFacts;
   manifest.execution = {...manifest.execution,model:visual.model};
@@ -171,12 +172,25 @@ async function createFrameEvidence({sourcePath, root, timeline}) {
   }
   return rows;
 }
+function modelConfigs(env = process.env) {
+  const primary = {
+    id:'primary',
+    base:String(env.NIANNIAN_STEP01_GPT_API_BASE_URL || env.NIANNIAN_STEP03_GPT_API_BASE_URL || '').replace(/\/+$/, ''),
+    key:String(env.NIANNIAN_STEP01_GPT_API_KEY || env.KRILL_CODEX_API_KEY || env.NIANNIAN_GPT_API_KEY || '').trim(),
+    model:String(env.NIANNIAN_STEP01_GPT_MODEL || env.NIANNIAN_STEP03_GPT_MODEL || 'gpt-5.6-sol').trim()
+  };
+  const fallbacks = [1, 2].map(index => ({
+    id:'fallback-' + index,
+    base:String(env['NIANNIAN_STEP01_GPT_FALLBACK_' + index + '_API_BASE_URL'] || '').replace(/\/+$/, ''),
+    key:String(env['NIANNIAN_STEP01_GPT_FALLBACK_' + index + '_API_KEY'] || '').trim(),
+    model:String(env['NIANNIAN_STEP01_GPT_FALLBACK_' + index + '_MODEL'] || primary.model).trim()
+  }));
+  const configured = [primary, ...fallbacks].filter(config => config.base || config.key);
+  if (!configured.length || configured.some(config => !/^https:\/\//.test(config.base) || !config.key || !config.model)) throw coded('STEP01_SERVER_GPT_PROFILE_NOT_CONFIGURED', '原片分析服务尚未完整配置');
+  return configured.map(config => ({...config, endpoint:config.base + '/responses'}));
+}
 function modelConfig(env = process.env) {
-  const base = String(env.NIANNIAN_STEP01_GPT_API_BASE_URL || env.NIANNIAN_STEP03_GPT_API_BASE_URL || '').replace(/\/+$/, '');
-  const key = String(env.NIANNIAN_STEP01_GPT_API_KEY || env.KRILL_CODEX_API_KEY || env.NIANNIAN_GPT_API_KEY || '').trim();
-  const model = String(env.NIANNIAN_STEP01_GPT_MODEL || env.NIANNIAN_STEP03_GPT_MODEL || 'gpt-5.6-sol').trim();
-  if (!/^https:\/\//.test(base) || !key || !model) throw coded('STEP01_SERVER_GPT_PROFILE_NOT_CONFIGURED', '原片分析服务尚未配置');
-  return {base, key, model, endpoint:base + '/responses'};
+  return modelConfigs(env)[0];
 }
 function skillInstructions() {
   return [
@@ -225,7 +239,11 @@ async function analyzeFrames({config, root, project, analysisRun, timeline, fram
   const request = {model:config.model,store:false,instructions:skillInstructions(),input:[{role:'user',content}],text:{format:{type:'json_schema',name:'niannian_haika_step01_visual_facts_v1',strict:true,schema:responseSchema()}}};
   let response;
   try { response = await fetchImpl(config.endpoint, {method:'POST',headers:{authorization:'Bearer ' + config.key,'content-type':'application/json'},body:JSON.stringify(request),signal:AbortSignal.timeout(Math.max(30000, Number(process.env.NIANNIAN_STEP01_GPT_TIMEOUT_MS || 180000)))}); }
-  catch (error) { throw coded('STEP01_SERVER_GPT_NETWORK_FAILED', '原片分析服务网络请求失败', error); }
+  catch (error) {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') throw coded('STEP01_SERVER_GPT_TIMEOUT', '原片分析服务请求超时', error);
+    if (['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(String(error?.cause?.code || error?.code || ''))) throw coded('STEP01_SERVER_GPT_NETWORK_UNREACHABLE', '原片分析服务无法连接', error);
+    throw coded('STEP01_SERVER_GPT_NETWORK_UNKNOWN', '原片分析服务网络请求失败', error);
+  }
   if (!response.ok) throw coded('STEP01_SERVER_GPT_HTTP_' + response.status, '原片分析服务请求失败');
   let parsed;
   try { parsed = JSON.parse(extractResponseText(await response.json())); }
@@ -233,17 +251,17 @@ async function analyzeFrames({config, root, project, analysisRun, timeline, fram
   return {segments:validateModelOutput(parsed, timeline), model:config.model};
 }
 function retriableGptError(error) {
-  return /^STEP01_SERVER_GPT_(NETWORK_FAILED|HTTP_(429|5\d\d))$/.test(String(error?.code || ''));
+  return /^STEP01_SERVER_GPT_(NETWORK_UNREACHABLE|HTTP_(429|5\d\d))$/.test(String(error?.code || ''));
 }
 async function analyzeFramesWithRetry(options) {
-  const attempts = Math.max(1, Math.min(3, Number(process.env.NIANNIAN_STEP01_GPT_MAX_ATTEMPTS || DEFAULT_GPT_ATTEMPTS)));
+  const configs = Array.isArray(options.configs) ? options.configs : (options.config ? [options.config] : []);
+  if (!configs.length) throw coded('STEP01_SERVER_GPT_PROFILE_NOT_CONFIGURED', '原片分析服务尚未完整配置');
   let lastError;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try { return await analyzeFrames(options); }
+  for (let attempt = 0; attempt < configs.length; attempt += 1) {
+    try { return await analyzeFrames({...options, config:configs[attempt]}); }
     catch (error) {
       lastError = error;
-      if (attempt === attempts || !retriableGptError(error)) throw error;
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      if (attempt === configs.length - 1 || !retriableGptError(error)) throw error;
     }
   }
   throw lastError;
@@ -336,4 +354,4 @@ async function runProject(options = {}) {
 
 if (require.main === module) runProject().catch(error => { process.stderr.write('step01_server_executor_failed: ' + String(error.code || error.message || error) + '\n'); process.exitCode = 1; });
 
-module.exports = {PROFILE, EVIDENCE_PROFILE, ROUTES, analyzeFrames, analyzeFramesWithRetry, attachHqVisualFacts, hqCapabilities, modelConfig, runHqWorker, runProject, segmentTimeline, validateModelOutput};
+module.exports = {PROFILE, EVIDENCE_PROFILE, ROUTES, analyzeFrames, analyzeFramesWithRetry, attachHqVisualFacts, hqCapabilities, modelConfig, modelConfigs, runHqWorker, runProject, segmentTimeline, validateModelOutput};

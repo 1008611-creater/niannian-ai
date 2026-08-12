@@ -9,6 +9,8 @@ const tests = [
   'test_web_runtime_adapter.js',
   'test_canvas_provider_config.js',
   'test_canvas_text_runtime.js',
+  'test_configure_haika_step01_secrets.js',
+  'test_step01_gpt_failover.js',
   'test_canvas_image2_runtime.js',
   'test_canvas_h3_runtime.js',
   'test_canvas_animate_runtime.js',
