@@ -60,7 +60,7 @@
     panel.id = 's1-chain-panel';
     panel.setAttribute('aria-label', 'S1 原片到时间线');
     panel.hidden = true;
-    panel.innerHTML = '<div class="s1-eyebrow">S1 CANVAS CHAIN</div><h2>原片到 Step02 时间线</h2><p>选择一份当前项目原片并确认权利。服务器会复制同一文件、校验 SHA 并执行媒体预检。</p><div class="s1-assets" data-s1-assets><span>正在读取项目素材...</span></div><label class="s1-row"><input type="checkbox" data-s1-rights> 我确认拥有该原片的使用与改编权限</label><div class="s1-row"><button type="button" data-s1-refresh class="s1-secondary">刷新素材</button><button type="button" data-s1-create disabled>绑定原片并创建节点</button></div><div class="s1-readiness" data-s1-readiness data-state="blocked"><strong>Step01 运行状态</strong>完成原片绑定后检查服务器分析环境。</div><div class="s1-row"><button type="button" data-s1-start disabled>开始 Step01 服务器分析</button><button type="button" data-s1-step02-prepare class="s1-secondary" disabled>准备 Step02 时间线</button></div><section class="s1-evidence" data-s1-evidence hidden></section><div class="s1-status" data-s1-status>等待选择一份视频素材。</div><div class="s1-nodes" data-s1-nodes hidden></div>';
+    panel.innerHTML = '<div class="s1-eyebrow">S1 CANVAS CHAIN</div><h2>原片到 Step02 时间线</h2><p>上传或选择一份当前项目原片并确认权利。服务器会复制同一文件、校验 SHA 并执行媒体预检。</p><div class="s1-row"><button type="button" data-s1-upload>上传原片</button><input type="file" data-s1-upload-input accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" hidden></div><div class="s1-assets" data-s1-assets><span>正在读取项目素材...</span></div><label class="s1-row"><input type="checkbox" data-s1-rights> 我确认拥有该原片的使用与改编权限</label><div class="s1-row"><button type="button" data-s1-refresh class="s1-secondary">刷新素材</button><button type="button" data-s1-create disabled>绑定原片并创建节点</button></div><div class="s1-readiness" data-s1-readiness data-state="blocked"><strong>Step01 运行状态</strong>完成原片绑定后检查服务器分析环境。</div><div class="s1-row"><button type="button" data-s1-start disabled>开始 Step01 服务器分析</button><button type="button" data-s1-step02-prepare class="s1-secondary" disabled>准备 Step02 时间线</button></div><section class="s1-evidence" data-s1-evidence hidden></section><div class="s1-status" data-s1-status>等待选择一份视频素材。</div><div class="s1-nodes" data-s1-nodes hidden></div>';
     document.body.appendChild(panel);
     installStyles();
     var assetsEl = panel.querySelector('[data-s1-assets]');
@@ -76,6 +76,8 @@
     reviewEl.hidden = true;
     panel.insertBefore(reviewEl, statusEl);
     var rightsEl = panel.querySelector('[data-s1-rights]');
+    var uploadBtn = panel.querySelector('[data-s1-upload]');
+    var uploadInput = panel.querySelector('[data-s1-upload-input]');
     var revision = 0;
     var assets = [];
     var evidenceRequest = 0;
@@ -191,11 +193,32 @@
     }
     function selectedIds() { return Array.prototype.slice.call(panel.querySelectorAll('input[data-s1-asset]:checked')).map(function (input) { return input.value; }); }
     function syncButton() { createBtn.disabled = selectedIds().length !== 1 || !rightsEl.checked; }
-    function renderAssets() {
+    function renderAssets(selectedAssetId) {
       var videos = assets.filter(function (asset) { return String(asset.mimeType || '').startsWith('video/'); });
-      assetsEl.innerHTML = videos.length ? videos.map(function (asset) { return '<label class="s1-asset"><input type="radio" name="s1-source-asset" data-s1-asset value="' + escapeHtml(asset.id) + '"><span class="s1-asset-name">' + escapeHtml(asset.originalName || asset.id) + '</span></label>'; }).join('') : '<span>当前项目暂无视频素材，请先在素材库上传原片。</span>';
+      assetsEl.innerHTML = videos.length ? videos.map(function (asset) { return '<label class="s1-asset"><input type="radio" name="s1-source-asset" data-s1-asset value="' + escapeHtml(asset.id) + '"' + (asset.id === selectedAssetId ? ' checked' : '') + '><span class="s1-asset-name">' + escapeHtml(asset.originalName || asset.id) + '</span></label>'; }).join('') : '<span>当前项目暂无视频素材，请在这里上传原片。</span>';
       panel.querySelectorAll('input[data-s1-asset]').forEach(function (input) { input.addEventListener('change', syncButton); });
       syncButton();
+    }
+    async function upload() {
+      var file = uploadInput.files && uploadInput.files[0];
+      if (!file) return;
+      uploadBtn.disabled = true;
+      setStatus('正在上传原片（' + Math.max(1, Math.round(file.size / 1024 / 1024)) + ' MB）...');
+      try {
+        var id = projectId();
+        var form = new FormData();
+        form.append('kind', 'reference_video');
+        form.append('asset', file, file.name);
+        var uploaded = await api('/api/projects/' + encodeURIComponent(id) + '/assets', {method:'POST',headers:{'x-niannian-project-kind':projectKind()},body:form});
+        await load();
+        renderAssets(uploaded.body.asset && uploaded.body.asset.id);
+        setStatus('原片已上传到当前项目。确认权利后即可绑定并执行服务器媒体预检。');
+      } catch (error) {
+        setStatus((error.code ? error.code + ': ' : '') + (error.message || '原片上传失败'), true);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadInput.value = '';
+      }
     }
     async function load() {
       var id = projectId();
@@ -253,6 +276,8 @@
       } catch (error) { setStatus((error.code ? error.code + ': ' : '') + (error.message || '准备 Step02 失败'), true); await load(); }
     }
     panel.querySelector('[data-s1-refresh]').addEventListener('click', load);
+    uploadBtn.addEventListener('click', function () { uploadInput.click(); });
+    uploadInput.addEventListener('change', upload);
     rightsEl.addEventListener('change', syncButton); createBtn.addEventListener('click', create); startBtn.addEventListener('click', start); prepareStep02Btn.addEventListener('click', prepareStep02);
     load();
     window.addEventListener('hashchange', load);

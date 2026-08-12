@@ -144,7 +144,7 @@ const maxScriptDocumentBytes = Math.max(1024 * 1024, Math.min(100 * 1024 * 1024,
 const scriptUploadChunkBytes = Math.max(256 * 1024, Math.min(4 * 1024 * 1024, Number(process.env.SCRIPT_UPLOAD_CHUNK_BYTES || 1024 * 1024)));
 const sessionTtlMs = 7 * 24 * 60 * 60 * 1000;
 const canvasGenerationJobService = canvasGenerationJobs.createCanvasGenerationJobService({filePath:canvasGenerationJobsPath});
-const canvasAssetService = canvasAssets.createCanvasAssetService({indexPath:canvasAssetsPath,storageRoot:canvasAssetsRoot,maxBytes:process.env.CANVAS_ASSET_MAX_BYTES});
+const canvasAssetService = canvasAssets.createCanvasAssetService({indexPath:canvasAssetsPath,storageRoot:canvasAssetsRoot,maxBytes:process.env.CANVAS_ASSET_MAX_BYTES,maxReferenceVideoBytes:process.env.CANVAS_REFERENCE_VIDEO_MAX_BYTES});
 const canvasProviderStatus = canvasProviderConfig.readCanvasProviderConfig();
 const canvasImage2Runtime = canvasImage2RuntimeModule.createCanvasImage2Runtime({
   jobService:canvasGenerationJobService,
@@ -7145,7 +7145,7 @@ async function handleCanvasAssetsApi(request, response, pathname, user) {
     let uploadError = null;
     let uploadPromise = Promise.resolve();
     let busboy;
-    try { busboy = Busboy({headers:request.headers,limits:{files:1,fileSize:canvasAssetService.maxBytes,fields:8}}); }
+    try { busboy = Busboy({headers:request.headers,limits:{files:1,fileSize:canvasAssetService.maxUploadBytes,fields:8}}); }
     catch { return json(response, 400, {code:'CANVAS_ASSET_MULTIPART_REQUIRED',error:'请使用 multipart/form-data 上传项目素材'}); }
     busboy.on('field', (name, value) => { fields[name] = value; });
     busboy.on('file', (name, file, info) => {

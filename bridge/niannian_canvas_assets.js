@@ -47,6 +47,8 @@ function createCanvasAssetService(options = {}) {
   const indexPath = path.resolve(options.indexPath);
   const storageRoot = path.resolve(options.storageRoot);
   const maxBytes = Math.max(1024 * 1024, Math.min(50 * 1024 * 1024, Number(options.maxBytes || 20 * 1024 * 1024)));
+  const maxReferenceVideoBytes = Math.max(maxBytes, Math.min(1024 * 1024 * 1024, Number(options.maxReferenceVideoBytes || 500 * 1024 * 1024)));
+  const maxUploadBytes = Math.max(maxBytes, maxReferenceVideoBytes);
   const maxOutputBytes = Math.max(maxBytes, Math.min(500 * 1024 * 1024, Number(options.maxOutputBytes || 300 * 1024 * 1024)));
   let writeTail = Promise.resolve();
 
@@ -110,7 +112,7 @@ function createCanvasAssetService(options = {}) {
     const format = FORMATS[clean(input.format, 12).toLowerCase()];
     const kind = clean(input.kind || 'reference_image', 40);
     if (!ownerId || !projectId || !['redraw','script'].includes(projectKind) || !Object.prototype.hasOwnProperty.call(KIND_FORMATS, kind)) throw assetError('CANVAS_ASSET_INPUT_INVALID', '素材归属信息无效', 422);
-    const maxAllowedBytes = kind.startsWith('reference_') ? maxBytes : maxOutputBytes;
+    const maxAllowedBytes = kind === 'reference_video' ? maxReferenceVideoBytes : kind.startsWith('reference_') ? maxBytes : maxOutputBytes;
     if (!format || !KIND_FORMATS[kind].includes(clean(input.format, 12).toLowerCase()) || !/^[a-f0-9]{64}$/.test(sha256) || !Number.isSafeInteger(bytes) || bytes <= 0 || bytes > maxAllowedBytes) throw assetError('CANVAS_ASSET_METADATA_INVALID', '素材完整性信息无效', 422);
     return withWriteLock(async () => {
       const assets = await readAll();
@@ -136,7 +138,7 @@ function createCanvasAssetService(options = {}) {
     if (!profile) throw assetError('CANVAS_ASSET_TYPE_UNSUPPORTED', '素材类型不受支持', 415);
     const kind = clean(input.kind || 'reference_image', 40);
     if (!Object.prototype.hasOwnProperty.call(KIND_FORMATS, kind) || !KIND_FORMATS[kind].includes(format)) throw assetError('CANVAS_ASSET_TYPE_UNSUPPORTED', '素材类型不支持当前用途', 415);
-    const maxAllowedBytes = kind.startsWith('reference_') ? maxBytes : maxOutputBytes;
+    const maxAllowedBytes = kind === 'reference_video' ? maxReferenceVideoBytes : kind.startsWith('reference_') ? maxBytes : maxOutputBytes;
     if (!bytes.length || bytes.length > maxAllowedBytes) throw assetError('CANVAS_ASSET_METADATA_INVALID', '素材完整性信息无效', 422);
     const assetId = 'CAS-' + crypto.randomBytes(12).toString('hex');
     const storedPath = path.resolve(storageRoot, assetId + profile.extension);
@@ -167,7 +169,7 @@ function createCanvasAssetService(options = {}) {
     return {...asset, storedPath};
   }
 
-  return {register,registerBuffer,listOwned,getOwned,publicAsset,formats:FORMATS,maxBytes,maxOutputBytes,constants:{indexPath,storageRoot}};
+  return {register,registerBuffer,listOwned,getOwned,publicAsset,formats:FORMATS,maxBytes,maxReferenceVideoBytes,maxUploadBytes,maxOutputBytes,constants:{indexPath,storageRoot}};
 }
 
 module.exports = {createCanvasAssetService,FORMATS};

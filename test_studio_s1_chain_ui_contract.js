@@ -8,7 +8,10 @@ const root = __dirname;
 const html = fs.readFileSync(path.join(root, 'studio', 'index.html'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'studio', 'assets', 's1-chain-ui.js'), 'utf8');
 
-assert.match(html, /assets\/s1-chain-ui\.js\?v=20260812-s1-step02-review-r1/);
+assert.match(html, /assets\/s1-chain-ui\.js\?v=20260812-s1-source-upload-r1/);
+assert.match(source, /data-s1-upload/);
+assert.match(source, /reference_video/);
+assert.match(source, /video\/mp4,video\/quicktime,video\/webm/);
 assert.match(source, /\/api\/canvas\/documents\//);
 assert.match(source, /\/s1-chain/);
 assert.match(source, /\/s1-source-binding/);
