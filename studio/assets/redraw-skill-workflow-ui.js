@@ -101,7 +101,7 @@
   function mount() {
     if (document.getElementById('redraw-workflow-launcher')) return;
     installStyles();
-    var launcher = document.createElement('button'); launcher.id = 'redraw-workflow-launcher'; launcher.type = 'button'; launcher.textContent = '添加转绘工作流'; launcher.hidden = !projectId(); document.body.appendChild(launcher);
+    var launcher = document.createElement('button'); launcher.id = 'redraw-workflow-launcher'; launcher.type = 'button'; launcher.textContent = '添加转绘工作流'; launcher.hidden = true; document.body.appendChild(launcher);
     var inspector = document.createElement('aside'); inspector.id = 'redraw-skill-inspector'; inspector.hidden = true; inspector.setAttribute('aria-label','转绘 Skill 节点详情'); inspector.innerHTML = '<header><div><small>REDRAW SKILL NODE</small><h2 data-rw-title>转绘节点</h2></div><button class="rw-close" type="button" aria-label="关闭节点详情">关闭</button></header><p data-rw-description></p><dl data-rw-meta></dl><section><h3>输入</h3><div data-rw-inputs></div></section><section><h3>输出</h3><div data-rw-outputs></div></section><section><h3>参数</h3><div data-rw-parameters></div></section><section><h3>素材与预览</h3><p data-rw-assets>等待上游节点输出或手动选择当前项目素材。</p></section><button class="rw-action" type="button" data-rw-action hidden></button><div class="rw-status" data-rw-status>点击画布中的转绘节点查看完整合同。</div>'; document.body.appendChild(inspector);
     var documentState = null; var revision = 0; var selected = null;
 
@@ -119,6 +119,7 @@
     }
 
     async function load() {
+      launcher.hidden = !projectId();
       if (!projectId()) return;
       var response = await api('/api/studio/projects/' + encodeURIComponent(projectId()), {headers:{'x-niannian-project-kind':projectKind()}});
       documentState = nativeDocument(response); revision = Number(response.body.revision || 0); var count = workflowNodes(documentState).length;
@@ -141,7 +142,9 @@
     launcher.addEventListener('click',createWorkflow); inspector.querySelector('.rw-close').addEventListener('click',function () { inspector.hidden = true; });
     inspector.querySelector('[data-rw-action]').addEventListener('click',function (event) { var target = document.getElementById(event.currentTarget.dataset.target); if (!target) return; if (target.id === 's1-chain-panel') { target.classList.add('rw-executor-open'); target.hidden = false; } else target.click(); inspector.hidden = true; });
     document.addEventListener('click',function (event) { var article = event.target instanceof Element ? event.target.closest('[data-node-id]') : null; if (!article || !documentState) return; var id = article.getAttribute('data-node-id'); var node = workflowNodes(documentState).find(function (item) { return item.id === id; }); if (node) render(node); },true);
-    load().catch(function (error) { launcher.textContent = '转绘工作流状态读取失败'; launcher.title = error.message || '读取失败'; });
+    function refreshRoute() { load().catch(function (error) { launcher.textContent = '转绘工作流状态读取失败'; launcher.title = error.message || '读取失败'; }); }
+    window.addEventListener('hashchange',refreshRoute); window.addEventListener('popstate',refreshRoute);
+    refreshRoute(); setTimeout(refreshRoute,0);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',mount,{once:true}); else mount();
