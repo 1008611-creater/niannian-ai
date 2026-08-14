@@ -37,7 +37,7 @@
 | 顺序 | 画布节点 | Skill 路由 | 输入 | 输出 | 当前状态 |
 | --- | --- | --- | --- | --- | --- |
 | 00 | 原片输入与权利确认 | `mx-shortdrama-00-router` | MP4/MOV、权利声明、项目 ID | 项目源视频资产、预检报告、权利事件 | **部分可用**；上传与预检合同存在，需真实新项目回读 |
-| 01 | 源片分析 | `mx-shortdrama-01-frame-extract` + Step01 server executor | 已验证源视频、分析授权 | 镜头、首/中/尾帧、对白/OCR、证据 manifest | **阻塞**；真实 `hq_full` 生产执行仍受服务器运行时/凭据门限制 |
+| 01 | 源片分析 | `mx-shortdrama-01-frame-extract` + Step01 server executor | 已验证源视频、分析授权 | 镜头、首/中/尾帧、对白/OCR、证据 manifest | **待真实闭环验证**；Haika 服务、`hq_full` runner、两个 Skill 根目录及所需服务配置已只读确认就绪，尚未在本阶段发起付费执行 |
 | 02 | 源片时间线确认 | `mx-shortdrama-02-source-timeline` | Step01 immutable evidence | 可确认时间线、镜头事实、revision | **合同/运行时部分可用**；需真实浏览器确认与刷新恢复 |
 | 03 | 地区与内容改编 | `mx-shortdrama-03-mexico-localize` | 已确认时间线、文本事实、目标地区 | 改编候选、差异、确认版本 | **合同/运行时部分可用**；必须保留人工确认门 |
 | 04 | 角色与场景资产 | `mx-shortdrama-04-character-assets` | 确认镜头、参考帧、角色职责 | 角色表、场景表、参考资产、首帧任务输入 | **候选**；需接入项目资产选择、预览和采用 |
