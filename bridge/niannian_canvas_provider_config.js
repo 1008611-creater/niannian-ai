@@ -27,7 +27,10 @@ function readCanvasProviderConfig(env = process.env) {
     [CHANNELS['yunfei-gpt-image-2-1k'].id]: yunfei1kSubmitEnabled,
     [CHANNELS['yunfei-gpt-image-2-hd'].id]: yunfeiHdSubmitEnabled
   });
-  const videoSubmitEnabled = credentialConfigured && baseUrlValid && isOn(env.NIANNIAN_CANVAS_H3_SUBMIT);
+  // H3 is billed against a consumer account and must never inherit the general
+  // RunningHub key used by other canvas providers.
+  const h3CredentialConfigured = isConfigured(env.NOMI_RUNNINGHUB_H3_API_KEY);
+  const videoSubmitEnabled = h3CredentialConfigured && baseUrlValid && isOn(env.NIANNIAN_CANVAS_H3_SUBMIT);
   const animateCredentialConfigured = isConfigured(env.NIANNIAN_RUNNINGHUB_ANIMATE_API_KEY);
   const animateSubmitEnabled = animateCredentialConfigured && baseUrlValid && isOn(env.NIANNIAN_CANVAS_ANIMATE_SUBMIT);
   return Object.freeze({
@@ -43,6 +46,7 @@ function readCanvasProviderConfig(env = process.env) {
     yunfeiHdBaseUrl,
     yunfei1kSubmitEnabled,
     yunfeiHdSubmitEnabled,
+    h3CredentialConfigured,
     videoSubmitEnabled,
     animateCredentialConfigured,
     animateSubmitEnabled
