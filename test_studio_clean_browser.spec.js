@@ -194,3 +194,22 @@ test('Project library renames a project and persists a custom cover', async ({br
 
   await context.close();
 });
+
+test('Project route gate prevents the library flash while the canvas hydrates', async ({browser}) => {
+  const context = await browser.newContext({viewport: {width: 1440, height: 900}});
+  await context.addCookies([{name: 'niannian_session', value: sessionToken, url: baseUrl}]);
+  const page = await context.newPage();
+
+  await page.goto(baseUrl + '/studio/', {waitUntil: 'networkidle'});
+  await page.getByRole('button', {name: /新建空白项目/}).click();
+  await page.waitForTimeout(500);
+  const projectId = await page.evaluate(() => window.nomiDesktop.projects.list()[0]?.id || null);
+  expect(projectId).toMatch(/^NN-/);
+
+  await page.goto(baseUrl + '/studio/#/studio?projectId=' + encodeURIComponent(projectId), {waitUntil: 'commit'});
+  expect(await page.evaluate(() => document.documentElement.classList.contains('nomi-project-route-pending'))).toBe(true);
+  await expect(page.locator('.nomi-studio-app')).toBeVisible({timeout: 15000});
+  expect(await page.locator('.nomi-library-page').count()).toBe(0);
+
+  await context.close();
+});
