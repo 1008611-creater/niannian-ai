@@ -120,6 +120,20 @@ test('Studio project library reads a ready server text model', async ({browser})
   await context.close();
 });
 
+test('Studio removes the browser entry from the workspace header', async ({browser}) => {
+  const context = await browser.newContext({viewport: {width: 1440, height: 900}});
+  await context.addCookies([{name: 'niannian_session', value: sessionToken, url: baseUrl}]);
+  const page = await context.newPage();
+
+  await page.goto(baseUrl + '/studio/', {waitUntil: 'networkidle'});
+  await page.getByRole('button', {name: /新建空白项目/}).click();
+  await expect(page.getByRole('banner', {name: '念念 AI 工作台'})).toBeVisible();
+  await expect(page.getByRole('button', {name: '打开浏览器'})).toHaveCount(0);
+  await expect(page.getByTitle('浏览器')).toHaveCount(0);
+
+  await context.close();
+});
+
 test('Studio project library keeps text readiness readable on mobile', async ({browser}) => {
   const context = await browser.newContext({viewport: {width: 390, height: 844}});
   await context.addCookies([{name: 'niannian_session', value: sessionToken, url: baseUrl}]);
