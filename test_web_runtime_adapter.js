@@ -7,6 +7,7 @@ const vm = require('vm');
 (async () => {
 const source = fs.readFileSync(require('path').join(__dirname, 'studio/assets/web-runtime-adapter-r4.js'), 'utf8');
 const studioIndex = fs.readFileSync(require('path').join(__dirname, 'studio/index.html'), 'utf8');
+const generationController = fs.readFileSync(require('path').join(__dirname, 'studio/assets/generationRunController-DH5v5RRt-r4.js'), 'utf8');
 assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=[A-Za-z0-9._-]+/);
 assert.match(source, /\/api\/canvas\/provider-status/);
 assert.match(source, /\/api\/projects\/.*\/canvas\/jobs/);
@@ -26,6 +27,8 @@ assert.match(source, /archetype:\s*\{id: 'happyhorse', modeId: 'edit'\}/);
 assert.match(source, /function projectThumbnailUrl\(value\)/);
 assert.match(source, /\/thumbnail/);
 assert.match(source, /webProjects = webProjects\.map\(function \(record\) \{ return projectSummary\(record, record\); \}\);/);
+assert.match(generationController, /referenceVideos:P\(t\.referenceVideos\)/);
+assert.match(generationController, /referenceAudios:P\(t\.referenceAudios\)/);
 
 const calls = [];
 const requestBodies = [];

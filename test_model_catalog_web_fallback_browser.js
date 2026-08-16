@@ -72,11 +72,14 @@ async function main() {
     await page.goto(baseUrl + '/studio/index.html', {waitUntil: 'domcontentloaded'});
     const result = await page.evaluate(async () => {
       const fallback = await import('/studio/assets/modelCatalogWebFallback-r4.js');
+      const studio = await import('/studio/assets/NomiStudioApp-DDB0IgSO-r28-19b89ec-r6.js?v=20260817-h3-reference-r1');
+      const native = studio.bx({modelKey: 'minimax-h3', modelAlias: 'minimax-h3', vendorKey: 'runninghub'});
       return {
         models: await fallback.webCatalogModels('image'),
         videoModels: await fallback.webCatalogModels('video'),
         health: await fallback.webCatalogHealth(),
-        vendors: await fallback.webCatalogVendors()
+        vendors: await fallback.webCatalogVendors(),
+        nativeH3: native && {id: native.id, modes: native.modes.map(mode => ({id: mode.id, slots: mode.slots.map(slot => ({kind: slot.kind, max: slot.max}))}))}
       };
     });
     assert.deepEqual(result.models.map(model => model.modelKey), ['yunwu-image-4k']);
@@ -91,6 +94,14 @@ async function main() {
     ]);
     assert.deepEqual(result.videoModels[0].meta.videoOptions.resolutionOptions, [{value: '2k', label: '2K'}]);
     assert.deepEqual(result.videoModels[0].modes.map(mode => mode.id), ['t2v', 'i2v', 'omni_reference']);
+    assert.deepEqual(result.nativeH3, {
+      id: 'minimax-h3',
+      modes: [
+        {id: 't2v', slots: []},
+        {id: 'i2v', slots: [{kind: 'image_ref', max: 1}]},
+        {id: 'omni', slots: [{kind: 'image_ref', max: 9}, {kind: 'video_ref', max: 3}, {kind: 'audio_ref', max: 3}]}
+      ]
+    });
     assert.deepEqual(result.videoModels[0].meta.videoOptions.durationOptions, [4, 5, 10, 15]);
     assert.equal(result.health.byKind.find(item => item.kind === 'image').enabledModels, 1);
     assert.deepEqual(result.vendors, [
