@@ -184,6 +184,10 @@
           }
         };
       });
+      if (status.text && status.text.submitEnabled === true && status.text.modelConfigured === true) {
+        catalogModelsPublic.push(providerModel('text', status));
+        if (!catalogVendors.some(function (vendor) { return vendor.key === 'asxs'; })) catalogVendors.push({key: 'asxs', name: 'ASXS'});
+      }
       return {vendors: catalogVendors, models: catalogModelsPublic};
     }
     var vendors = [
