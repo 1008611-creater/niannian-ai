@@ -160,6 +160,32 @@
   var catalogState = {vendors: [], models: []};
 
   function catalogForStatus(status) {
+    // Server model catalog is the only browser-facing configuration surface.
+    // It contains enabled models and prices, never provider URLs or credentials.
+    if (status.modelCatalog && Array.isArray(status.modelCatalog.models)) {
+      var catalogModels = status.modelCatalog.models.filter(function (item) { return item && item.enabled === true; });
+      var catalogVendors = [];
+      var catalogModelsPublic = catalogModels.map(function (item) {
+        var vendorKey = String(item.providerLabel || 'server').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'server';
+        if (!catalogVendors.some(function (vendor) { return vendor.key === vendorKey; })) catalogVendors.push({key: vendorKey, name: item.providerLabel || '已接入模型'});
+        return {
+          modelKey: item.id,
+          modelAlias: item.id,
+          vendorKey: vendorKey,
+          labelZh: item.label || item.id,
+          kind: item.kind,
+          enabled: true,
+          pricing: {cost: Number(item.priceCredits || 0), enabled: true, specCosts: []},
+          meta: {
+            transportTaskKind: item.kind === 'video' ? 'text_to_video' : 'image_edit',
+            supportedResolutions: item.resolutions || [],
+            supportedAspectRatios: item.aspectRatios || [],
+            outputSizes: item.outputSizes || {}
+          }
+        };
+      });
+      return {vendors: catalogVendors, models: catalogModelsPublic};
+    }
     var vendors = [
       {
         key: 'runninghub',
