@@ -90,10 +90,12 @@ async function run() {
   const grantResponse = await fetch(`${appUrl}/api/studio/spend-grants`, {method:'POST',headers:headers('h3-token-a',{'content-type':'application/json'}),body:JSON.stringify({projectId:'NN-H3-DELIVERY-A',projectKind:'redraw',nodeIds:['h3-node']})});
   const grant = await grantResponse.json();
   assert.equal(grantResponse.status, 201);
-  const taskResponse = await fetch(`${appUrl}/api/studio/tasks`, {method:'POST',headers:headers('h3-token-a',{'content-type':'application/json'}),body:JSON.stringify({projectId:'NN-H3-DELIVERY-A',projectKind:'redraw',vendor:'runninghub',request:{kind:'text_to_video',prompt:'雨夜城市街头，人物缓慢回头',extras:{grantId:grant.grantId,nodeId:'h3-node',idempotencyKey:'delivery-idempotency',modelKey:'niannian/minimax-h3',archetypeInput:{}}}})});
+  const taskResponse = await fetch(`${appUrl}/api/studio/tasks`, {method:'POST',headers:headers('h3-token-a',{'content-type':'application/json'}),body:JSON.stringify({projectId:'NN-H3-DELIVERY-A',projectKind:'redraw',vendor:'runninghub',request:{kind:'text_to_video',prompt:'雨夜城市街头，人物缓慢回头',extras:{grantId:grant.grantId,nodeId:'h3-node',idempotencyKey:'delivery-idempotency',modelKey:'niannian/minimax-h3',archetypeInput:{mode:'t2v'}}}})});
   const task = await taskResponse.json();
   assert.equal(taskResponse.status, 202);
   assert.equal(task.result.status, 'queued');
+  assert.equal(task.result.mode, 't2v');
+  assert.equal(task.result.provider, 'runninghub-h3');
   assert.equal(runCalls, 1);
 
   const deliveredResponse = await fetch(`${appUrl}/api/studio/tasks/${encodeURIComponent(task.result.id)}?projectId=NN-H3-DELIVERY-A`, {headers:headers('h3-token-a')});

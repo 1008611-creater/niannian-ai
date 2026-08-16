@@ -8,6 +8,14 @@ const IMAGE_NODES = ['4', '19', '20', '21', '25', '27', '29', '31', '33'];
 const AUDIO_NODES = ['23', '35', '37'];
 const VIDEO_NODES = ['39', '41', '43'];
 const MAX_IMAGE_REFERENCES = 9;
+const DEFAULT_IMAGE_WORKFLOWS = Object.freeze({
+  1: Object.freeze({workflowId:'2085388519102570497',endpointPath:'/openapi/v2/run/workflow/2085388519102570497',imageNodes:Object.freeze(['4']),targetNode:'6',promptNode:'7'})
+});
+const H3_MODES = Object.freeze({
+  t2v: Object.freeze({id:'t2v', label:'文生视频', images:0, audio:0, videos:0}),
+  i2v: Object.freeze({id:'i2v', label:'图生视频', images:1, audio:0, videos:0}),
+  omni_reference: Object.freeze({id:'omni_reference', label:'全能参考生视频', images:9, audio:3, videos:3})
+});
 
 function taskError(code, message, httpStatus = 422) {
   const error = new Error(message || code);
@@ -61,14 +69,36 @@ function targetFor(input = {}) {
   return target;
 }
 
+function requestedMode(input = {}) {
+  const raw = String(input.mode || input.modeId || input.referenceMode || '').trim().toLowerCase();
+  if (!raw) return null;
+  const aliases = {
+    text:'t2v', text_to_video:'t2v', t2v:'t2v',
+    image:'i2v', image_to_video:'i2v', i2v:'i2v', one_image:'i2v',
+    omni:'omni_reference', omnireference:'omni_reference', omni_reference:'omni_reference', multimodal:'omni_reference', multimodal_9i3a3v:'omni_reference', 'multimodal-9i3a3v':'omni_reference'
+  };
+  const mode = aliases[raw];
+  if (!mode) throw taskError('NOMI_H3_MODE_INVALID', 'H3 模式无效，仅支持文生视频、图生视频或全能参考生视频');
+  return mode;
+}
+
+function assertRequestedMode(mode, images, audio, videos) {
+  if (!mode) return;
+  const contract = H3_MODES[mode];
+  if (images.length !== contract.images || audio.length !== contract.audio || videos.length !== contract.videos) {
+    throw taskError('NOMI_H3_MODE_REFERENCE_MISMATCH', `${contract.label}需要 ${contract.images} 张图片、${contract.audio} 段音频和 ${contract.videos} 段视频参考`);
+  }
+}
+
 function readImageWorkflowCatalog(value) {
-  if (!value) return Object.freeze({});
-  let parsed;
-  try { parsed = typeof value === 'string' ? JSON.parse(value) : value; }
-  catch { throw taskError('NOMI_H3_IMAGE_WORKFLOW_CONFIG_INVALID', 'H3 多图工作流配置无效', 503); }
+  let parsed = {};
+  if (value) {
+    try { parsed = typeof value === 'string' ? JSON.parse(value) : value; }
+    catch { throw taskError('NOMI_H3_IMAGE_WORKFLOW_CONFIG_INVALID', 'H3 多图工作流配置无效', 503); }
+  }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw taskError('NOMI_H3_IMAGE_WORKFLOW_CONFIG_INVALID', 'H3 多图工作流配置无效', 503);
   const catalog = {};
-  for (const [countKey, raw] of Object.entries(parsed)) {
+  for (const [countKey, raw] of Object.entries({...DEFAULT_IMAGE_WORKFLOWS, ...parsed})) {
     const count = Number(countKey);
     if (!Number.isInteger(count) || count < 1 || count > MAX_IMAGE_REFERENCES || !raw || typeof raw !== 'object' || Array.isArray(raw)) throw taskError('NOMI_H3_IMAGE_WORKFLOW_CONFIG_INVALID', 'H3 多图工作流配置无效', 503);
     const workflowId = String(raw.workflowId || '').trim();
@@ -132,6 +162,8 @@ function createNomiRunningHubH3(options = {}) {
     const images = input?.images || [];
     const audio = input?.audio || [];
     const videos = input?.videos || [];
+    const mode = requestedMode(input);
+    assertRequestedMode(mode, images, audio, videos);
     const target = targetFor(input);
     if (!images.length && !audio.length && !videos.length) {
       return {mode:'t2v',workflowId:TEXT_WORKFLOW_ID,endpointPath:'/openapi/v2/run/workflow/' + TEXT_WORKFLOW_ID,nodeInfoList:[
@@ -143,20 +175,20 @@ function createNomiRunningHubH3(options = {}) {
       if (images.length > MAX_IMAGE_REFERENCES) throw taskError('NOMI_H3_IMAGE_REFERENCE_LIMIT', 'H3 最多支持九张项目图片参考');
       const workflow = imageWorkflowCatalog[images.length];
       if (!workflow) throw taskError('NOMI_H3_IMAGE_WORKFLOW_UNPUBLISHED', '当前图片数量对应的 H3 工作流尚未发布', 409);
-      return {mode:`image-${images.length}`,workflowId:workflow.workflowId,endpointPath:workflow.endpointPath,nodeInfoList:[...workflow.imageNodes.map((nodeId, index) => node(nodeId, 'image', `DRY_RUN_IMAGE_${index + 1}`)),...targetControls(prompt,target,workflow.targetNode,workflow.promptNode)],target};
+      return {mode:mode || `image-${images.length}`,referenceType:'image',workflowId:workflow.workflowId,endpointPath:workflow.endpointPath,nodeInfoList:[...workflow.imageNodes.map((nodeId, index) => node(nodeId, 'image', `DRY_RUN_IMAGE_${index + 1}`)),...targetControls(prompt,target,workflow.targetNode,workflow.promptNode)],target};
     }
     if (images.length !== 9 || audio.length !== 3 || videos.length !== 3) {
       throw taskError('NOMI_H3_COMBINATION_UNVERIFIED', '当前多模态工作流仅验证了 9 图、3 音频、3 视频的完整组合；请补齐素材或改用文生视频。');
     }
-    return {mode:'multimodal-9i3a3v',workflowId:MULTIMODAL_WORKFLOW_ID,endpointPath:'/openapi/v2/run/workflow/' + MULTIMODAL_WORKFLOW_ID,nodeInfoList:targetControls(prompt,target),target};
+    return {mode:mode || 'multimodal-9i3a3v',referenceType:'omni',workflowId:MULTIMODAL_WORKFLOW_ID,endpointPath:'/openapi/v2/run/workflow/' + MULTIMODAL_WORKFLOW_ID,nodeInfoList:targetControls(prompt,target),target};
   }
   async function submit(input) {
     const draft = dryRun(input);
-    if (draft.mode.startsWith('image-')) {
+    if (draft.referenceType === 'image') {
       const uploadedImages = [];
       for (const image of input.images) uploadedImages.push(await upload(image));
       draft.nodeInfoList.forEach(item => { if (item.fieldName === 'image') item.fieldValue = uploadedImages.shift(); });
-    } else if (draft.mode === 'multimodal-9i3a3v') {
+    } else if (draft.referenceType === 'omni') {
       const uploadedImages = await Promise.all(input.images.map(upload));
       const uploadedAudio = await Promise.all(input.audio.map(upload));
       const uploadedVideos = await Promise.all(input.videos.map(upload));
@@ -176,7 +208,7 @@ function createNomiRunningHubH3(options = {}) {
     const status = urls.length ? 'succeeded' : /FAILED|REJECTED|CANCELLED/.test(text) ? 'failed' : 'running';
     return {status,videoUrls:urls,usage:collectUsage(response)};
   }
-  return {dryRun,submit,query,constants:{TEXT_WORKFLOW_ID,MULTIMODAL_WORKFLOW_ID,IMAGE_NODES,AUDIO_NODES,VIDEO_NODES,MAX_IMAGE_REFERENCES,imageWorkflowCounts:Object.keys(imageWorkflowCatalog).map(Number).sort((a,b) => a - b)}};
+  return {dryRun,submit,query,constants:{TEXT_WORKFLOW_ID,MULTIMODAL_WORKFLOW_ID,IMAGE_NODES,AUDIO_NODES,VIDEO_NODES,MAX_IMAGE_REFERENCES,H3_MODES,imageWorkflowCounts:Object.keys(imageWorkflowCatalog).map(Number).sort((a,b) => a - b)}};
 }
 
 function collectUsage(value) {
@@ -197,4 +229,4 @@ function verifyConsumerUsage(usage) {
   return {consumeCoins:coins,consumeMoney:moneyValue};
 }
 
-module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, collectUsage, verifyConsumerUsage, TEXT_WORKFLOW_ID, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES};
+module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, requestedMode, collectUsage, verifyConsumerUsage, TEXT_WORKFLOW_ID, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES, H3_MODES, DEFAULT_IMAGE_WORKFLOWS};

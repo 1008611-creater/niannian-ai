@@ -8,8 +8,20 @@ const {validateH3MediaMetadata} = require('./bridge/niannian_h3_media_validation
 function image(index) { return {id:`CAS-${String(index).padStart(24, '0')}`,storedPath:`C:/test/${index}.png`,mimeType:'image/png',originalName:`${index}.png`}; }
 
 async function run() {
-  const catalog = {5:{workflowId:'2085000000000000001',endpointPath:'/openapi/v2/run/ai-app/2085000000000000001',imageNodes:['4','19','20','21','23'],targetNode:'6',promptNode:'7'}};
+  const catalog = {
+    1:{workflowId:'2085388519102570497',endpointPath:'/openapi/v2/run/workflow/2085388519102570497',imageNodes:['4'],targetNode:'6',promptNode:'7'},
+    5:{workflowId:'2085000000000000001',endpointPath:'/openapi/v2/run/ai-app/2085000000000000001',imageNodes:['4','19','20','21','23'],targetNode:'6',promptNode:'7'}
+  };
   const h3 = createNomiRunningHubH3({imageWorkflows:catalog});
+  assert.equal(createNomiRunningHubH3().dryRun({mode:'i2v',prompt:'默认一图通道',images:[image(1)],audio:[],videos:[]}).workflowId, '2085388519102570497');
+  assert.equal(h3.dryRun({mode:'t2v',prompt:'雨夜街头，一人缓慢回头',images:[],audio:[],videos:[]}).mode, 't2v');
+  const i2v = h3.dryRun({mode:'i2v',prompt:'人物缓慢回头',images:[image(1)],audio:[],videos:[]});
+  assert.equal(i2v.mode, 'i2v');
+  assert.equal(i2v.workflowId, catalog[1].workflowId);
+  const omni = h3.dryRun({mode:'omni_reference',prompt:'人物与道具连续表演',images:Array.from({length:9}, (_, index) => image(index + 1)),audio:[1,2,3],videos:[1,2,3]});
+  assert.equal(omni.mode, 'omni_reference');
+  assert.throws(() => h3.dryRun({mode:'i2v',prompt:'x',images:[image(1),image(2)],audio:[],videos:[]}), error => error?.code === 'NOMI_H3_MODE_REFERENCE_MISMATCH');
+  assert.throws(() => h3.dryRun({mode:'omni_reference',prompt:'x',images:Array.from({length:9}, (_, index) => image(index + 1)),audio:[],videos:[]}), error => error?.code === 'NOMI_H3_MODE_REFERENCE_MISMATCH');
   const draft = h3.dryRun({prompt:'五张资产图共同锁定人物、场景和道具',aspectRatio:'9:16',durationSeconds:10,images:[1,2,3,4,5].map(image),audio:[],videos:[]});
   assert.equal(draft.mode, 'image-5');
   assert.equal(draft.workflowId, catalog[5].workflowId);
@@ -19,7 +31,7 @@ async function run() {
   assert.throws(() => h3.dryRun({prompt:'x',images:[1,2,3,4].map(image),audio:[],videos:[]}), error => error?.code === 'NOMI_H3_IMAGE_WORKFLOW_UNPUBLISHED');
   assert.throws(() => h3.dryRun({prompt:'x',images:Array.from({length:10}, (_, index) => image(index)),audio:[],videos:[]}), error => error?.code === 'NOMI_H3_IMAGE_REFERENCE_LIMIT');
   assert.throws(() => readImageWorkflowCatalog({5:{workflowId:'2085000000000000001',imageNodes:['4','19','20','21','23'],targetNode:'6',promptNode:'7'}}), error => error?.code === 'NOMI_H3_IMAGE_WORKFLOW_CONFIG_INVALID');
-  assert.deepEqual(Object.keys(readImageWorkflowCatalog(catalog)), ['5']);
+  assert.deepEqual(Object.keys(readImageWorkflowCatalog(catalog)), ['1','5']);
   assert.deepEqual(targetFor({aspectRatio:'16:9',durationSeconds:5}), {aspectRatio:'16:9',durationSeconds:5,width:832,height:480});
   assert.deepEqual(targetFor({aspectRatio:'9:16',durationSeconds:5,images:[image(1)]}), {aspectRatio:'9:16',durationSeconds:5,width:576,height:1024});
   assert.deepEqual(targetFor({aspectRatio:'9:16',durationSeconds:5,width:480,height:832,images:[image(1)]}), {aspectRatio:'9:16',durationSeconds:5,width:576,height:1024});

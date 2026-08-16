@@ -48,13 +48,16 @@ function generationOptions(model, normalized) {
     };
   }
   if (normalized === "video") {
+    const configured = model?.videoOptions && typeof model.videoOptions === "object" ? model.videoOptions : null;
     return {
       videoOptions: {
-        sizeOptions: ratios,
-        resolutionOptions: resolutions,
-        defaultSize: ratios[0]?.value,
-        defaultResolution: resolutions[0]?.value,
-        controls: [
+        sizeOptions: configured?.sizeOptions || ratios,
+        durationOptions: configured?.durationOptions || [],
+        resolutionOptions: configured?.resolutionOptions || resolutions,
+        defaultDurationSeconds: configured?.defaultDurationSeconds,
+        defaultSize: configured?.defaultSize || ratios[0]?.value,
+        defaultResolution: configured?.defaultResolution || resolutions[0]?.value,
+        controls: configured?.controls || [
           { key: "aspect_ratio", label: "比例", binding: "size", optionSource: "sizeOptions" },
           { key: "resolution", label: "大小", binding: "resolution", optionSource: "resolutionOptions" }
         ]
@@ -88,8 +91,12 @@ export async function webCatalogModels(kind) {
           cost: Number(model?.priceCredits ?? model?.cost ?? 0) || 0,
           enabled: model?.enabled !== false,
         },
+        ...(modelKey === "minimax-h3" ? {
+          modes: Array.isArray(model?.videoModes) ? model.videoModes.map((mode) => ({ id: mode.id, labelZh: mode.label, transportTaskKind: "text_to_video", meta: { referenceContract: mode.referenceContract || {} } })) : []
+        } : {}),
         meta: {
           transportTaskKind: normalized === "video" ? "text_to_video" : normalized === "image" ? "image_generation" : undefined,
+          ...(modelKey === "minimax-h3" ? { archetype: { id: "minimax-h3", modeId: "t2v" }, h3Modes: model?.videoModes || [] } : {}),
           supportedResolutions: model?.resolutions || model?.supportedResolutions || [],
           supportedAspectRatios: model?.aspectRatios || model?.supportedAspectRatios || [],
           outputSizes: model?.outputSizes || {},
