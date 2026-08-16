@@ -99,7 +99,7 @@ async function main() {
       modes: [
         {id: 't2v', slots: []},
         {id: 'i2v', slots: [{kind: 'image_ref', max: 1}]},
-        {id: 'omni', slots: [{kind: 'image_ref', max: 9}, {kind: 'video_ref', max: 3}, {kind: 'audio_ref', max: 3}]}
+        {id: 'omni_reference', slots: [{kind: 'image_ref', max: 9}, {kind: 'video_ref', max: 3}, {kind: 'audio_ref', max: 3}]}
       ]
     });
     assert.deepEqual(result.videoModels[0].meta.videoOptions.durationOptions, [4, 5, 10, 15]);
