@@ -35,6 +35,7 @@ function h3Document(ownerId) {
     generationCanvas:{nodes:[
       {id:'h3-node',kind:'video',title:'H3 文生视频',position:{x:0,y:0},prompt:'雨夜城市街头',meta:{modelKey:'niannian/minimax-h3',archetype:{id:'minimax-h3',modeId:'t2v'}}},
       {id:'h3-first-last-node',kind:'video',title:'H3 首尾帧生视频',position:{x:0,y:0},prompt:'人物缓慢回头',meta:{modelKey:'niannian/minimax-h3',archetype:{id:'minimax-h3',modeId:'first_last'}}},
+      {id:'h3-dual-sample-node',kind:'video',title:'H3 双采重绘',position:{x:0,y:0},prompt:'人物与场景细节重绘',meta:{modelKey:'niannian/minimax-h3',archetype:{id:'minimax-h3',modeId:'dual_sample'}}},
       {id:'h3-omni-node',kind:'video',title:'H3 全能参考',position:{x:0,y:0},prompt:'人物与道具连续表演',meta:{modelKey:'niannian/minimax-h3',archetype:{id:'minimax-h3',modeId:'omni_reference'}}}
     ],edges:[]}
   }};
@@ -114,7 +115,7 @@ async function submitMode(nodeId, mode, references, idempotencyKey) {
 async function run() {
   await seed();
   provider = http.createServer((request, response) => {
-    const workflowMatch = request.url.match(/^\/openapi\/v2\/run\/workflow\/(2084079636237078529|2084070256573767682|2085082190681038850)$/);
+    const workflowMatch = request.url.match(/^\/openapi\/v2\/run\/workflow\/(2084079636237078529|2084070256573767682|2089232623242670081|2085082190681038850)$/);
     if (workflowMatch && request.method === 'POST') {
       runCalls += 1;
       const taskId = `mock-h3-task-${runCalls}`;
@@ -186,6 +187,8 @@ async function run() {
   }
   const firstLast = await submitMode('h3-first-last-node', 'first_last', {first_frame_asset_id:imageIds[0],last_frame_asset_id:imageIds[1]}, 'delivery-first-last');
   assert.equal(firstLast.delivered.result.mode, 'first_last');
+  const dualSample = await submitMode('h3-dual-sample-node', 'dual_sample', {reference_image_asset_ids:imageIds.slice(0, 6)}, 'delivery-dual-sample');
+  assert.equal(dualSample.delivered.result.mode, 'dual_sample');
   const omni = await submitMode('h3-omni-node', 'omni_reference', {
     reference_image_asset_ids:imageIds,
     reference_audio_asset_ids:audioIds,
@@ -195,11 +198,12 @@ async function run() {
   assert.deepEqual(workflowPaths, [
     '/openapi/v2/run/workflow/2084079636237078529',
     '/openapi/v2/run/workflow/2084070256573767682',
+    '/openapi/v2/run/workflow/2089232623242670081',
     '/openapi/v2/run/workflow/2085082190681038850'
   ]);
-  assert.equal(runCalls, 3);
-  assert.equal(queryCalls, 3);
-  assert.equal(videoReads, 3);
+  assert.equal(runCalls, 4);
+  assert.equal(queryCalls, 4);
+  assert.equal(videoReads, 4);
 
   const downloadResponse = await fetch(appUrl + delivered.result.assets[0].url, {headers:headers('h3-token-a')});
   assert.equal(downloadResponse.status, 200);
@@ -208,7 +212,7 @@ async function run() {
   const projectDeliveries = await projectDeliveriesResponse.json();
   assert.equal(projectDeliveriesResponse.status, 200, JSON.stringify(projectDeliveries));
   assert.equal(projectDeliveries.status, '已完成');
-  assert.equal(projectDeliveries.deliveries.length, 3);
+  assert.equal(projectDeliveries.deliveries.length, 4);
   assert.equal(projectDeliveries.deliveries[0].type, 'video');
   assert.match(projectDeliveries.deliveries[0].openUrl, /^\/api\/projects\/NN-H3-DELIVERY-A\/assets\/CAS-[a-f0-9]{24}\/download$/);
   assert.equal(projectDeliveries.deliveries[0].downloadUrl, projectDeliveries.deliveries[0].openUrl + '?download=1');
@@ -221,7 +225,7 @@ async function run() {
   const workspaceDeliveriesResponse = await fetch(`${appUrl}/api/workspace-projects/NN-H3-DELIVERY-A/deliveries`, {headers:headers('h3-token-a')});
   const workspaceDeliveries = await workspaceDeliveriesResponse.json();
   assert.equal(workspaceDeliveriesResponse.status, 200, JSON.stringify(workspaceDeliveries));
-  assert.equal(workspaceDeliveries.deliveries.length, 3);
+  assert.equal(workspaceDeliveries.deliveries.length, 4);
   assert.equal(workspaceDeliveries.deliveries[0].assetId, projectDeliveries.deliveries[0].assetId);
   const docs = JSON.parse(await fsp.readFile(path.join(dataRoot, 'canvas-documents.json'), 'utf8'));
   const node = docs['nomi:redraw:NN-H3-DELIVERY-A'].document.generationCanvas.nodes[0];
@@ -232,8 +236,8 @@ async function run() {
   assert.equal(tasks.includes('/result.mp4'), false);
   const repeat = await fetch(`${appUrl}/api/studio/tasks/${encodeURIComponent(task.result.id)}?projectId=NN-H3-DELIVERY-A`, {headers:headers('h3-token-a')});
   assert.equal(repeat.status, 200);
-  assert.equal(queryCalls, 3);
-  assert.equal(videoReads, 3);
+  assert.equal(queryCalls, 4);
+  assert.equal(videoReads, 4);
   const foreign = await fetch(`${appUrl}/api/studio/tasks/${encodeURIComponent(task.result.id)}?projectId=NN-H3-DELIVERY-A`, {headers:headers('h3-token-b')});
   assert.equal(foreign.status, 404);
   const foreignProjectDeliveries = await fetch(`${appUrl}/api/projects/NN-H3-DELIVERY-A/deliveries`, {headers:headers('h3-token-b')});

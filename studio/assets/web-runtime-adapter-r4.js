@@ -390,6 +390,7 @@
     // 避免默认模式把图生或全能参考误报为文生输入错误。
     if (!explicitMode) {
       if (firstFrames.length === 1 && lastFrames.length === 1 && !audio.length && !videos.length) mode = 'first_last';
+      else if (images.length === 6 && !audio.length && !videos.length) mode = 'dual_sample';
       else if (images.length === 9 && audio.length === 3 && videos.length === 3) mode = 'omni_reference';
       else if (!images.length && !audio.length && !videos.length) mode = 't2v';
       else mode = '';
