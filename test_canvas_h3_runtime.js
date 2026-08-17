@@ -24,13 +24,13 @@ async function run() {
   );
   const h3Adapter = createRunningHubH3Adapter({baseUrl:'https://www.runninghub.cn'});
   const genericOnlyAdapter = createRunningHubH3Adapter({baseUrl:'https://www.runninghub.cn',fetchImpl:async () => { throw new Error('must not reach provider'); }});
-  const previousConsumerKey = process.env.NOMI_RUNNINGHUB_H3_API_KEY;
+  const previousConsumerKey = process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY;
   const previousGenericKey = process.env.RUNNINGHUB_API_KEY;
-  delete process.env.NOMI_RUNNINGHUB_H3_API_KEY;
+  delete process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY;
   process.env.RUNNINGHUB_API_KEY = 'enterprise-key-must-not-be-used';
   await assert.rejects(() => genericOnlyAdapter.query('provider-task-001'), error => error?.code === 'RUNNINGHUB_CREDENTIAL_NOT_CONFIGURED');
-  if (previousConsumerKey === undefined) delete process.env.NOMI_RUNNINGHUB_H3_API_KEY;
-  else process.env.NOMI_RUNNINGHUB_H3_API_KEY = previousConsumerKey;
+  if (previousConsumerKey === undefined) delete process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY;
+  else process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY = previousConsumerKey;
   if (previousGenericKey === undefined) delete process.env.RUNNINGHUB_API_KEY;
   else process.env.RUNNINGHUB_API_KEY = previousGenericKey;
   const dryRun = h3Adapter.dryRun({prompt:'中文人物自然转身',aspectRatio:'9:16',durationSeconds:5}, 1);

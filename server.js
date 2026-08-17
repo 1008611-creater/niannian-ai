@@ -9020,10 +9020,10 @@ async function handleStudioTaskApi(request, response, pathname, user) {
       try {
         const current = await nomiWebH3.query(record.providerTaskId);
         if (current.status === 'succeeded') {
-          nomiRunningHubH3.verifyConsumerUsage(current.usage);
+          const providerUsage = nomiRunningHubH3.normalizeProviderUsage(current.usage);
           const asset = await downloadStudioGeneratedVideo(user, owned, current.videoUrls[0], record.id, record.parameters);
           await writeNomiGeneratedVideoResult(user, owned, record.nodeId, asset);
-          record = await nomiWebTaskStore.updateOwnedTask(user.id, projectId, record.id, {status:'succeeded',outputAssetIds:[asset.id],assets:[{type:'video',assetId:asset.id,url:asset.downloadUrl}],completedAt:new Date().toISOString(),error:null});
+          record = await nomiWebTaskStore.updateOwnedTask(user.id, projectId, record.id, {status:'succeeded',outputAssetIds:[asset.id],assets:[{type:'video',assetId:asset.id,url:asset.downloadUrl}],providerUsage,completedAt:new Date().toISOString(),error:null});
         } else {
           record = await nomiWebTaskStore.updateOwnedTask(user.id, projectId, record.id, {status:current.status,error:current.status === 'failed' ? '视频生成失败，请检查提示词或稍后重试。' : null});
         }

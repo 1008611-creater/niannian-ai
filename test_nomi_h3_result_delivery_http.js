@@ -133,7 +133,9 @@ async function run() {
       const taskId = Array.from(providerTasks.keys())[queryCalls - 1] || 'mock-h3-task-unknown';
       response.writeHead(200, {'content-type':'application/json'});
       const workflowId = providerTasks.get(taskId);
-      const usage = {consumeCoins:12,consumeMoney:0};
+      const usage = workflowId === '2089232623242670081'
+        ? {consumeCoins:null,consumeMoney:'1.01'}
+        : {consumeCoins:12,consumeMoney:0};
       return response.end(JSON.stringify({data:{taskId,status:'SUCCESS',resultUrl:`${providerUrl}/result.mp4`,usage}}));
     }
     if (request.url === '/result.mp4' && request.method === 'GET') {
@@ -144,7 +146,7 @@ async function run() {
     response.writeHead(404); response.end();
   });
   await listen(provider, providerPort);
-  app = spawn(process.execPath, ['server.js'], {cwd:root,env:{...process.env,PORT:String(appPort),DATA_DIR:dataRoot,NIANNIAN_LOCAL_PREVIEW_INSECURE_SESSION:'on',NODE_ENV:'test',NOMI_RUNNINGHUB_H3_BASE_URL:providerUrl,NOMI_RUNNINGHUB_H3_API_KEY:'test-only-key',RUNNINGHUB_API_KEY:'enterprise-key-must-not-be-used'},stdio:['ignore','pipe','pipe']});
+  app = spawn(process.execPath, ['server.js'], {cwd:root,env:{...process.env,PORT:String(appPort),DATA_DIR:dataRoot,NIANNIAN_LOCAL_PREVIEW_INSECURE_SESSION:'on',NODE_ENV:'test',NOMI_RUNNINGHUB_H3_BASE_URL:providerUrl,NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY:'test-only-key',RUNNINGHUB_API_KEY:'enterprise-key-must-not-be-used'},stdio:['ignore','pipe','pipe']});
   app.stdout.on('data', chunk => { output += chunk.toString('utf8'); });
   app.stderr.on('data', chunk => { output += chunk.toString('utf8'); });
   await waitForApp();

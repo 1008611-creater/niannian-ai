@@ -2,7 +2,7 @@ const assert = require('assert/strict');
 const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');
-const {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, dualSampleTargetFor, verifyConsumerUsage} = require('./bridge/niannian_nomi_runninghub_h3');
+const {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, dualSampleTargetFor, normalizeProviderUsage} = require('./bridge/niannian_nomi_runninghub_h3');
 const {validateH3MediaMetadata} = require('./bridge/niannian_h3_media_validation');
 
 function image(index) { return {id:`CAS-${String(index).padStart(24, '0')}`,storedPath:`C:/test/${index}.png`,mimeType:'image/png',originalName:`${index}.png`}; }
@@ -54,9 +54,8 @@ async function run() {
   assert.deepEqual(targetFor({aspectRatio:'9:16',durationSeconds:5,images:[image(1),image(2)]}), {aspectRatio:'9:16',durationSeconds:5,width:480,height:832});
   assert.throws(() => targetFor({aspectRatio:'9:16',width:832,height:480}), error => error?.code === 'NOMI_H3_TARGET_DIMENSION_MISMATCH');
   assert.throws(() => targetFor({durationSeconds:3}), error => error?.code === 'NOMI_H3_DURATION_OUT_OF_RANGE');
-  assert.deepEqual(verifyConsumerUsage({consumeCoins:12,consumeMoney:0}), {consumeCoins:12,consumeMoney:0});
-  assert.throws(() => verifyConsumerUsage({consumeCoins:null,consumeMoney:'1.01'}), error => error?.code === 'NOMI_H3_BILLING_UNVERIFIED');
-  assert.throws(() => verifyConsumerUsage({consumeCoins:0,consumeMoney:0}), error => error?.code === 'NOMI_H3_BILLING_UNVERIFIED');
+  assert.deepEqual(normalizeProviderUsage({consumeCoins:12,consumeMoney:0}), {consumeCoins:12,consumeMoney:0});
+  assert.deepEqual(normalizeProviderUsage({consumeCoins:null,consumeMoney:'1.01'}), {consumeCoins:null,consumeMoney:1.01});
   assert.equal(validateH3MediaMetadata({width:480,height:832,durationSeconds:10.125}, draft.target).width, 480);
   assert.equal(validateH3MediaMetadata({width:1920,height:1088,durationSeconds:5.167}, dualFiveSecondTarget).width, 1920);
   assert.throws(() => validateH3MediaMetadata({width:832,height:480,durationSeconds:10}, draft.target), error => error?.code === 'H3_TARGET_DIMENSION_MISMATCH');
@@ -108,18 +107,22 @@ async function run() {
   }
   const rejected = createNomiRunningHubH3({apiKey:'consumer-test-key',fetchImpl:async () => ({ok:true,json:async () => ({code:'WORKFLOW_DENIED',errorMessage:'private provider detail must not escape'})})});
   await assert.rejects(() => rejected.submit({prompt:'结构化拒绝测试',images:[],audio:[],videos:[]}), error => error?.code === 'RUNNINGHUB_PROVIDER_REJECTED' && error?.providerCode === 'WORKFLOW_DENIED' && !String(error?.message).includes('private'));
-  const originalConsumerKey = process.env.NOMI_RUNNINGHUB_H3_API_KEY;
+  const originalConsumerKey = process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY;
+  const originalLegacyH3Key = process.env.NOMI_RUNNINGHUB_H3_API_KEY;
   const originalGenericKey = process.env.RUNNINGHUB_API_KEY;
   try {
-    delete process.env.NOMI_RUNNINGHUB_H3_API_KEY;
+    delete process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY;
+    process.env.NOMI_RUNNINGHUB_H3_API_KEY = 'legacy-enterprise-key-must-not-be-used';
     process.env.RUNNINGHUB_API_KEY = 'enterprise-key-must-not-be-used';
     let requestMade = false;
     const isolated = createNomiRunningHubH3({fetchImpl:async () => { requestMade = true; throw new Error('request must not be made'); }});
     await assert.rejects(() => isolated.submit({prompt:'消费级凭据隔离测试',images:[],audio:[],videos:[]}), error => error?.code === 'RUNNINGHUB_CREDENTIAL_NOT_CONFIGURED');
     assert.equal(requestMade, false);
   } finally {
-    if (originalConsumerKey === undefined) delete process.env.NOMI_RUNNINGHUB_H3_API_KEY;
-    else process.env.NOMI_RUNNINGHUB_H3_API_KEY = originalConsumerKey;
+    if (originalConsumerKey === undefined) delete process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY;
+    else process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY = originalConsumerKey;
+    if (originalLegacyH3Key === undefined) delete process.env.NOMI_RUNNINGHUB_H3_API_KEY;
+    else process.env.NOMI_RUNNINGHUB_H3_API_KEY = originalLegacyH3Key;
     if (originalGenericKey === undefined) delete process.env.RUNNINGHUB_API_KEY;
     else process.env.RUNNINGHUB_API_KEY = originalGenericKey;
   }

@@ -130,7 +130,7 @@ function createNomiRunningHubH3(options = {}) {
   const baseUrl = String(options.baseUrl || process.env.NOMI_RUNNINGHUB_H3_BASE_URL || process.env.RUNNINGHUB_BASE_URL || BASE_URL).replace(/\/+$/, '');
   const imageWorkflowCatalog = readImageWorkflowCatalog(options.imageWorkflows ?? process.env.NOMI_RUNNINGHUB_H3_IMAGE_WORKFLOWS);
   const apiKey = () => {
-    const value = String(options.apiKey || process.env.NOMI_RUNNINGHUB_H3_API_KEY || '').trim();
+    const value = String(options.apiKey || process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY || '').trim();
     if (!value) throw taskError('RUNNINGHUB_CREDENTIAL_NOT_CONFIGURED', '视频渠道尚未配置', 503);
     return value;
   };
@@ -252,14 +252,14 @@ function collectUsage(value) {
   return null;
 }
 
-function verifyConsumerUsage(usage) {
-  const coins = Number(usage?.consumeCoins);
+function normalizeProviderUsage(usage) {
+  const rawCoins = usage?.consumeCoins;
+  const coins = rawCoins === undefined || rawCoins === null || rawCoins === '' ? null : Number(rawCoins);
   const money = usage?.consumeMoney;
-  const moneyValue = money === undefined || money === null || money === '' ? 0 : Number(money);
-  if (!Number.isFinite(coins) || coins <= 0 || !Number.isFinite(moneyValue) || moneyValue !== 0) {
-    throw taskError('NOMI_H3_BILLING_UNVERIFIED', 'H3 结算未满足消费级币合同', 502);
-  }
-  return {consumeCoins:coins,consumeMoney:moneyValue};
+  const moneyValue = money === undefined || money === null || money === '' ? null : Number(money);
+  // Credential class is selected by the dedicated server configuration. Provider
+  // billing telemetry cannot determine whether a key is consumer or enterprise.
+  return {consumeCoins:Number.isFinite(coins) ? coins : null,consumeMoney:Number.isFinite(moneyValue) ? moneyValue : null};
 }
 
-module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, dualSampleTargetFor, requestedMode, collectUsage, verifyConsumerUsage, TEXT_WORKFLOW_ID, FIRST_LAST_WORKFLOW, DUAL_SAMPLE_WORKFLOW, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES, H3_MODES, DEFAULT_IMAGE_WORKFLOWS};
+module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, dualSampleTargetFor, requestedMode, collectUsage, normalizeProviderUsage, TEXT_WORKFLOW_ID, FIRST_LAST_WORKFLOW, DUAL_SAMPLE_WORKFLOW, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES, H3_MODES, DEFAULT_IMAGE_WORKFLOWS};
