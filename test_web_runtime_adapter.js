@@ -192,5 +192,12 @@ assert.deepEqual(requestBodies[11].request.extras.archetypeInput.reference_video
 const h3Result = await context.window.nomiDesktop.tasks.result({taskId:h3Task.id});
 assert.equal(h3Result.vendor, 'runninghub-h3');
 assert.equal(h3Result.result.status, 'running');
+const firstLastTask = await context.window.nomiDesktop.tasks.run({request:{kind:'text_to_video',prompt:'从开场走到收束',extras:{nodeId:'h3-node-2',modelKey:'minimax-h3',firstFrameUrl:'CAS-first-frame',lastFrameUrl:'CAS-last-frame',aspectRatio:'9:16',durationSeconds:5}}});
+assert.equal(firstLastTask.id, 'studio-task-h3-test');
+const firstLastRequest = requestBodies.at(-1);
+assert.equal(firstLastRequest.request.extras.archetypeInput.mode, 'first_last');
+assert.deepEqual(firstLastRequest.request.extras.archetypeInput.reference_image_asset_ids, ['CAS-first-frame','CAS-last-frame']);
+assert.equal(firstLastRequest.request.extras.archetypeInput.first_frame_asset_id, 'CAS-first-frame');
+assert.equal(firstLastRequest.request.extras.archetypeInput.last_frame_asset_id, 'CAS-last-frame');
 console.log('WEB_RUNTIME_ADAPTER_CONTRACT_OK');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

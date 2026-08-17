@@ -8962,14 +8962,20 @@ async function handleStudioTaskApi(request, response, pathname, user) {
       if (!isNomiH3Node(node) || !requestedNomiH3Model(body.request)) return json(response, 422, {code:'NOMI_H3_NODE_REQUIRED',error:'当前节点不是已启用的 MiniMax H3 视频节点'});
       const rawInput = body.request?.extras?.archetypeInput;
       const input = rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput) ? rawInput : {};
+      const requestedMode = canvasText(input.mode || input.mode_id || body.request?.extras?.h3Mode || body.request?.extras?.archetype?.modeId, 40);
       // 新版 Nomi 网页端传 assetId；仅在同项目受保护下载路径的迁移窗口内兼容 URL。
       // 任何 blob:/data:/外链/Provider 临时地址都会由 resolveStudioProjectAssets 拒绝。
-      const images = await resolveStudioProjectAssets(user, owned, input.reference_image_asset_ids || input.reference_image_urls || [], 'reference_image', 9);
+      const firstFrame = input.first_frame_asset_id || input.first_frame_image || input.first_frame_url;
+      const lastFrame = input.last_frame_asset_id || input.last_frame_image || input.last_frame_url;
+      const imageReferences = requestedMode === 'first_last' && (firstFrame || lastFrame)
+        ? [firstFrame, lastFrame].filter(Boolean)
+        : (input.reference_image_asset_ids || input.reference_image_urls || []);
+      const images = await resolveStudioProjectAssets(user, owned, imageReferences, 'reference_image', 9);
       const audio = await resolveStudioProjectAssets(user, owned, input.reference_audio_asset_ids || input.reference_audio_urls || [], 'reference_audio', 3);
       const videos = await resolveStudioProjectAssets(user, owned, input.reference_video_asset_ids || input.reference_video_urls || [], 'reference_video', 3);
       const h3Input = {
         prompt:canvasText(body.request?.prompt, 4000),
-        mode:canvasText(input.mode || input.mode_id || body.request?.extras?.h3Mode || body.request?.extras?.archetype?.modeId, 40) || undefined,
+        mode:requestedMode || undefined,
         aspectRatio:canvasText(input.aspect_ratio || body.request?.extras?.aspectRatio || '16:9', 16),
         durationSeconds:Number(input.duration_seconds || body.request?.extras?.durationSeconds || 5),
         width:Number(input.width || body.request?.width) || undefined,

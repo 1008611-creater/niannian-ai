@@ -3,6 +3,7 @@ const path = require('path');
 
 const BASE_URL = 'https://www.runninghub.cn';
 const TEXT_WORKFLOW_ID = '2084079636237078529';
+const FIRST_LAST_WORKFLOW = Object.freeze({workflowId:'2084070256573767682',endpointPath:'/openapi/v2/run/workflow/2084070256573767682',firstFrameNode:'6',lastFrameNode:'4',targetNode:'7',promptNode:'8'});
 const MULTIMODAL_WORKFLOW_ID = '2085082190681038850';
 const IMAGE_NODES = ['4', '19', '20', '21', '25', '27', '29', '31', '33'];
 const AUDIO_NODES = ['23', '35', '37'];
@@ -13,7 +14,7 @@ const DEFAULT_IMAGE_WORKFLOWS = Object.freeze({
 });
 const H3_MODES = Object.freeze({
   t2v: Object.freeze({id:'t2v', label:'文生视频', images:0, audio:0, videos:0}),
-  i2v: Object.freeze({id:'i2v', label:'图生视频', images:1, audio:0, videos:0}),
+  first_last: Object.freeze({id:'first_last', label:'首尾帧生视频', images:2, audio:0, videos:0}),
   omni_reference: Object.freeze({id:'omni_reference', label:'全能参考生视频', images:9, audio:3, videos:3})
 });
 
@@ -58,12 +59,9 @@ function providerEnvelopeRejection(value) {
 
 function targetFor(input = {}) {
   const aspectRatio = String(input.aspectRatio || '16:9').trim();
-  const oneImagePortrait = aspectRatio === '9:16' && Array.isArray(input.images) && input.images.length === 1;
-  const defaults = oneImagePortrait
-    ? {width:576, height:1024}
-    : { '9:16':{width:480, height:832}, '1:1':{width:720, height:720}, '16:9':{width:832, height:480} }[aspectRatio];
+  const defaults = { '9:16':{width:480, height:832}, '1:1':{width:720, height:720}, '16:9':{width:832, height:480} }[aspectRatio];
   if (!defaults) throw taskError('NOMI_H3_TARGET_DIMENSION_MISMATCH', 'H3 仅支持 16:9、9:16 或 1:1 画幅');
-  const target = {aspectRatio,durationSeconds:positiveInteger(input.durationSeconds, 5),width:oneImagePortrait ? defaults.width : positiveInteger(input.width, defaults.width),height:oneImagePortrait ? defaults.height : positiveInteger(input.height, defaults.height)};
+  const target = {aspectRatio,durationSeconds:positiveInteger(input.durationSeconds, 5),width:positiveInteger(input.width, defaults.width),height:positiveInteger(input.height, defaults.height)};
   if (target.durationSeconds < 4 || target.durationSeconds > 15) throw taskError('NOMI_H3_DURATION_OUT_OF_RANGE', 'H3 时长必须在 4 到 15 秒之间');
   if (Math.abs(target.width / target.height - defaults.width / defaults.height) > 0.04) throw taskError('NOMI_H3_TARGET_DIMENSION_MISMATCH', 'H3 画幅与宽高设置不一致');
   return target;
@@ -74,11 +72,11 @@ function requestedMode(input = {}) {
   if (!raw) return null;
   const aliases = {
     text:'t2v', text_to_video:'t2v', t2v:'t2v',
-    image:'i2v', image_to_video:'i2v', i2v:'i2v', one_image:'i2v',
+    first_last:'first_last', 'first-last':'first_last', first_last_frame:'first_last', first_last_frame_to_video:'first_last', image_to_video:'first_last', i2v:'first_last',
     omni:'omni_reference', omnireference:'omni_reference', omni_reference:'omni_reference', multimodal:'omni_reference', multimodal_9i3a3v:'omni_reference', 'multimodal-9i3a3v':'omni_reference'
   };
   const mode = aliases[raw];
-  if (!mode) throw taskError('NOMI_H3_MODE_INVALID', 'H3 模式无效，仅支持文生视频、图生视频或全能参考生视频');
+  if (!mode) throw taskError('NOMI_H3_MODE_INVALID', 'H3 模式无效，仅支持文生视频、首尾帧生视频或全能参考生视频');
   return mode;
 }
 
@@ -171,6 +169,16 @@ function createNomiRunningHubH3(options = {}) {
         node('4','width', target.width), node('4','height', target.height), node('5','prompt',prompt)
       ],target};
     }
+    if (!mode && images.length === 1 && !audio.length && !videos.length) {
+      throw taskError('NOMI_H3_FIRST_LAST_MODE_REQUIRED', '单图参考通道已停用，请使用首尾帧生视频并同时提供首帧和尾帧');
+    }
+    if (mode === 'first_last') {
+      return {mode,referenceType:'first_last',workflowId:FIRST_LAST_WORKFLOW.workflowId,endpointPath:FIRST_LAST_WORKFLOW.endpointPath,nodeInfoList:[
+        node(FIRST_LAST_WORKFLOW.firstFrameNode,'image','DRY_RUN_FIRST_FRAME'),
+        node(FIRST_LAST_WORKFLOW.lastFrameNode,'image','DRY_RUN_LAST_FRAME'),
+        ...targetControls(prompt,target,FIRST_LAST_WORKFLOW.targetNode,FIRST_LAST_WORKFLOW.promptNode)
+      ],target};
+    }
     if (images.length && !audio.length && !videos.length) {
       if (images.length > MAX_IMAGE_REFERENCES) throw taskError('NOMI_H3_IMAGE_REFERENCE_LIMIT', 'H3 最多支持九张项目图片参考');
       const workflow = imageWorkflowCatalog[images.length];
@@ -184,7 +192,7 @@ function createNomiRunningHubH3(options = {}) {
   }
   async function submit(input) {
     const draft = dryRun(input);
-    if (draft.referenceType === 'image') {
+    if (draft.referenceType === 'image' || draft.referenceType === 'first_last') {
       const uploadedImages = [];
       for (const image of input.images) uploadedImages.push(await upload(image));
       draft.nodeInfoList.forEach(item => { if (item.fieldName === 'image') item.fieldValue = uploadedImages.shift(); });
@@ -208,7 +216,7 @@ function createNomiRunningHubH3(options = {}) {
     const status = urls.length ? 'succeeded' : /FAILED|REJECTED|CANCELLED/.test(text) ? 'failed' : 'running';
     return {status,videoUrls:urls,usage:collectUsage(response)};
   }
-  return {dryRun,submit,query,constants:{TEXT_WORKFLOW_ID,MULTIMODAL_WORKFLOW_ID,IMAGE_NODES,AUDIO_NODES,VIDEO_NODES,MAX_IMAGE_REFERENCES,H3_MODES,imageWorkflowCounts:Object.keys(imageWorkflowCatalog).map(Number).sort((a,b) => a - b)}};
+  return {dryRun,submit,query,constants:{TEXT_WORKFLOW_ID,FIRST_LAST_WORKFLOW,MULTIMODAL_WORKFLOW_ID,IMAGE_NODES,AUDIO_NODES,VIDEO_NODES,MAX_IMAGE_REFERENCES,H3_MODES,imageWorkflowCounts:Object.keys(imageWorkflowCatalog).map(Number).sort((a,b) => a - b)}};
 }
 
 function collectUsage(value) {
@@ -229,4 +237,4 @@ function verifyConsumerUsage(usage) {
   return {consumeCoins:coins,consumeMoney:moneyValue};
 }
 
-module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, requestedMode, collectUsage, verifyConsumerUsage, TEXT_WORKFLOW_ID, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES, H3_MODES, DEFAULT_IMAGE_WORKFLOWS};
+module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, requestedMode, collectUsage, verifyConsumerUsage, TEXT_WORKFLOW_ID, FIRST_LAST_WORKFLOW, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES, H3_MODES, DEFAULT_IMAGE_WORKFLOWS};

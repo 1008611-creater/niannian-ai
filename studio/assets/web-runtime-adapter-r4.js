@@ -373,25 +373,35 @@
 
   function h3ArchetypeInput(extras) {
     var existing = extras && extras.archetypeInput && typeof extras.archetypeInput === 'object' && !Array.isArray(extras.archetypeInput) ? extras.archetypeInput : {};
-    var images = valuesFrom(existing, ['reference_image_asset_ids','reference_image_urls','reference_image'])
-      .concat(valuesFrom(extras, ['referenceImages','firstFrameUrl','lastFrameUrl']));
+    var referenceImages = valuesFrom(existing, ['reference_image_asset_ids','reference_image_urls','reference_image'])
+      .concat(valuesFrom(extras, ['referenceImages']));
+    var firstFrames = valuesFrom(existing, ['first_frame_asset_id','first_frame_image','first_frame_url'])
+      .concat(valuesFrom(extras, ['firstFrameUrl']));
+    var lastFrames = valuesFrom(existing, ['last_frame_asset_id','last_frame_image','last_frame_url'])
+      .concat(valuesFrom(extras, ['lastFrameUrl']));
     var audio = valuesFrom(existing, ['reference_audio_asset_ids','reference_audio_urls','reference_audio'])
       .concat(valuesFrom(extras, ['referenceAudios','referenceAudioUrl','audioUrl']));
     var videos = valuesFrom(existing, ['reference_video_asset_ids','reference_video_urls','reference_video'])
       .concat(valuesFrom(extras, ['referenceVideos','sourceVideoUrl','relayFromVideoUrl']));
     var explicitMode = String(existing.mode || existing.mode_id || extras.h3Mode || '').trim();
     var mode = explicitMode || String(extras.archetype?.modeId || '').trim();
+    var images = referenceImages.concat(firstFrames, lastFrames);
     // 新节点默认是文生；一旦画布连入已保存的参考素材，按实际槽位自动切换，
     // 避免默认模式把图生或全能参考误报为文生输入错误。
     if (!explicitMode) {
-      if (images.length === 1 && !audio.length && !videos.length) mode = 'i2v';
+      if (firstFrames.length === 1 && lastFrames.length === 1 && !audio.length && !videos.length) mode = 'first_last';
       else if (images.length === 9 && audio.length === 3 && videos.length === 3) mode = 'omni_reference';
       else if (!images.length && !audio.length && !videos.length) mode = 't2v';
       else mode = '';
     }
+    var firstFrame = uniqueAssetIds(firstFrames)[0];
+    var lastFrame = uniqueAssetIds(lastFrames)[0];
+    if (mode === 'first_last' && firstFrame && lastFrame) images = [firstFrame, lastFrame];
     return {
       ...(mode ? {mode: mode} : {}),
       reference_image_asset_ids: uniqueAssetIds(images),
+      ...(firstFrame ? {first_frame_asset_id:firstFrame} : {}),
+      ...(lastFrame ? {last_frame_asset_id:lastFrame} : {}),
       reference_audio_asset_ids: uniqueAssetIds(audio),
       reference_video_asset_ids: uniqueAssetIds(videos),
       aspect_ratio: existing.aspect_ratio || extras.aspectRatio || '9:16',

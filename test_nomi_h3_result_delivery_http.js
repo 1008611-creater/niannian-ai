@@ -34,7 +34,7 @@ function h3Document(ownerId) {
     workbenchDocument:{contentJson:{type:'doc',content:[]}},timeline:{tracks:[]},
     generationCanvas:{nodes:[
       {id:'h3-node',kind:'video',title:'H3 文生视频',position:{x:0,y:0},prompt:'雨夜城市街头',meta:{modelKey:'niannian/minimax-h3',archetype:{id:'minimax-h3',modeId:'t2v'}}},
-      {id:'h3-i2v-node',kind:'video',title:'H3 图生视频',position:{x:0,y:0},prompt:'人物缓慢回头',meta:{modelKey:'niannian/minimax-h3',archetype:{id:'minimax-h3',modeId:'i2v'}}},
+      {id:'h3-first-last-node',kind:'video',title:'H3 首尾帧生视频',position:{x:0,y:0},prompt:'人物缓慢回头',meta:{modelKey:'niannian/minimax-h3',archetype:{id:'minimax-h3',modeId:'first_last'}}},
       {id:'h3-omni-node',kind:'video',title:'H3 全能参考',position:{x:0,y:0},prompt:'人物与道具连续表演',meta:{modelKey:'niannian/minimax-h3',archetype:{id:'minimax-h3',modeId:'omni_reference'}}}
     ],edges:[]}
   }};
@@ -114,7 +114,7 @@ async function submitMode(nodeId, mode, references, idempotencyKey) {
 async function run() {
   await seed();
   provider = http.createServer((request, response) => {
-    const workflowMatch = request.url.match(/^\/openapi\/v2\/run\/workflow\/(2084079636237078529|2085388519102570497|2085082190681038850)$/);
+    const workflowMatch = request.url.match(/^\/openapi\/v2\/run\/workflow\/(2084079636237078529|2084070256573767682|2085082190681038850)$/);
     if (workflowMatch && request.method === 'POST') {
       runCalls += 1;
       const taskId = `mock-h3-task-${runCalls}`;
@@ -184,8 +184,8 @@ async function run() {
     referenceVideo.write('isom', 8, 'ascii');
     videoIds.push(await uploadReference('reference_video', referenceVideo, `reference-${index + 1}.mp4`, 'video/mp4'));
   }
-  const i2v = await submitMode('h3-i2v-node', 'i2v', {reference_image_asset_ids:[imageIds[0]]}, 'delivery-i2v');
-  assert.equal(i2v.delivered.result.mode, 'i2v');
+  const firstLast = await submitMode('h3-first-last-node', 'first_last', {first_frame_asset_id:imageIds[0],last_frame_asset_id:imageIds[1]}, 'delivery-first-last');
+  assert.equal(firstLast.delivered.result.mode, 'first_last');
   const omni = await submitMode('h3-omni-node', 'omni_reference', {
     reference_image_asset_ids:imageIds,
     reference_audio_asset_ids:audioIds,
@@ -194,7 +194,7 @@ async function run() {
   assert.equal(omni.delivered.result.mode, 'omni_reference');
   assert.deepEqual(workflowPaths, [
     '/openapi/v2/run/workflow/2084079636237078529',
-    '/openapi/v2/run/workflow/2085388519102570497',
+    '/openapi/v2/run/workflow/2084070256573767682',
     '/openapi/v2/run/workflow/2085082190681038850'
   ]);
   assert.equal(runCalls, 3);
