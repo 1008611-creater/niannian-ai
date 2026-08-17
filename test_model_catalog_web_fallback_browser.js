@@ -62,7 +62,6 @@ async function main() {
           videoModes: [
             {id: 't2v', label: '文生视频', referenceContract: {images: 0, audio: 0, videos: 0}},
             {id: 'first_last', label: '首尾帧生视频', referenceContract: {images: 2, audio: 0, videos: 0}},
-            {id: 'dual_sample', label: '双采重绘', referenceContract: {images: 6, audio: 0, videos: 0}},
             {id: 'omni_reference', label: '全能参考生视频', referenceContract: {images: 9, audio: 3, videos: 3}}
           ],
           videoOptions: {durationOptions: [4, 5, 10, 15], sizeOptions: [{value: '9:16', label: '9:16'}, {value: '16:9', label: '16:9'}, {value: '1:1', label: '1:1'}], resolutionOptions: [{value: '2k', label: '2K'}], defaultDurationSeconds: 5, defaultSize: '9:16', defaultResolution: '2k'}
@@ -73,7 +72,7 @@ async function main() {
     await page.goto(baseUrl + '/studio/index.html', {waitUntil: 'domcontentloaded'});
     const result = await page.evaluate(async () => {
       const fallback = await import('/studio/assets/modelCatalogWebFallback-r4.js');
-      const studio = await import('/studio/assets/NomiStudioApp-DDB0IgSO-r28-19b89ec-r6.js?v=20260817-h3-dual-sample-r3');
+      const studio = await import('/studio/assets/NomiStudioApp-DDB0IgSO-r28-19b89ec-r6.js?v=20260817-h3-first-last-r2');
       const native = studio.bx({modelKey: 'minimax-h3', modelAlias: 'minimax-h3', vendorKey: 'runninghub'});
       return {
         models: await fallback.webCatalogModels('image'),
@@ -94,13 +93,12 @@ async function main() {
       {value: '1:1', label: '1:1'}
     ]);
     assert.deepEqual(result.videoModels[0].meta.videoOptions.resolutionOptions, [{value: '2k', label: '2K'}]);
-    assert.deepEqual(result.videoModels[0].modes.map(mode => mode.id), ['t2v', 'first_last', 'dual_sample', 'omni_reference']);
+    assert.deepEqual(result.videoModels[0].modes.map(mode => mode.id), ['t2v', 'first_last', 'omni_reference']);
     assert.deepEqual(result.nativeH3, {
       id: 'minimax-h3',
       modes: [
         {id: 't2v', slots: []},
         {id: 'first_last', slots: [{kind: 'first_frame', max: 1}, {kind: 'last_frame', max: 1}]},
-        {id: 'dual_sample', slots: [{kind: 'image_ref', max: 6}]},
         {id: 'omni_reference', slots: [{kind: 'image_ref', max: 9}, {kind: 'video_ref', max: 3}, {kind: 'audio_ref', max: 3}]}
       ]
     });
