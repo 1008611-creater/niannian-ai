@@ -256,13 +256,10 @@ function verifyConsumerUsage(usage) {
   const coins = Number(usage?.consumeCoins);
   const money = usage?.consumeMoney;
   const moneyValue = money === undefined || money === null || money === '' ? 0 : Number(money);
-  const coinBilled = Number.isFinite(coins) && coins > 0;
-  const moneyBilled = Number.isFinite(moneyValue) && moneyValue > 0;
-  // RunningHub consumer keys can bill either in coins or money. A positive charge
-  // in one official usage field proves consumer billing; never reject a completed task
-  // simply because the other field is null.
-  if (!coinBilled && !moneyBilled) throw taskError('NOMI_H3_BILLING_UNVERIFIED', 'H3 结算未确认使用消费级币种', 502);
-  return {consumeCoins:coinBilled ? coins : null,consumeMoney:moneyBilled ? moneyValue : 0};
+  if (!Number.isFinite(coins) || coins <= 0 || !Number.isFinite(moneyValue) || moneyValue !== 0) {
+    throw taskError('NOMI_H3_BILLING_UNVERIFIED', 'H3 结算未满足消费级币合同', 502);
+  }
+  return {consumeCoins:coins,consumeMoney:moneyValue};
 }
 
 module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, dualSampleTargetFor, requestedMode, collectUsage, verifyConsumerUsage, TEXT_WORKFLOW_ID, FIRST_LAST_WORKFLOW, DUAL_SAMPLE_WORKFLOW, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES, H3_MODES, DEFAULT_IMAGE_WORKFLOWS};

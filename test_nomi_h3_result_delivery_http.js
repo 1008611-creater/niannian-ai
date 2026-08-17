@@ -133,9 +133,7 @@ async function run() {
       const taskId = Array.from(providerTasks.keys())[queryCalls - 1] || 'mock-h3-task-unknown';
       response.writeHead(200, {'content-type':'application/json'});
       const workflowId = providerTasks.get(taskId);
-      const usage = workflowId === '2089232623242670081'
-        ? {consumeCoins:null,consumeMoney:'1.01'}
-        : {consumeCoins:12,consumeMoney:0};
+      const usage = {consumeCoins:12,consumeMoney:0};
       return response.end(JSON.stringify({data:{taskId,status:'SUCCESS',resultUrl:`${providerUrl}/result.mp4`,usage}}));
     }
     if (request.url === '/result.mp4' && request.method === 'GET') {

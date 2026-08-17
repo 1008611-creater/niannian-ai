@@ -55,7 +55,7 @@ async function run() {
   assert.throws(() => targetFor({aspectRatio:'9:16',width:832,height:480}), error => error?.code === 'NOMI_H3_TARGET_DIMENSION_MISMATCH');
   assert.throws(() => targetFor({durationSeconds:3}), error => error?.code === 'NOMI_H3_DURATION_OUT_OF_RANGE');
   assert.deepEqual(verifyConsumerUsage({consumeCoins:12,consumeMoney:0}), {consumeCoins:12,consumeMoney:0});
-  assert.deepEqual(verifyConsumerUsage({consumeCoins:null,consumeMoney:'1.01'}), {consumeCoins:null,consumeMoney:1.01});
+  assert.throws(() => verifyConsumerUsage({consumeCoins:null,consumeMoney:'1.01'}), error => error?.code === 'NOMI_H3_BILLING_UNVERIFIED');
   assert.throws(() => verifyConsumerUsage({consumeCoins:0,consumeMoney:0}), error => error?.code === 'NOMI_H3_BILLING_UNVERIFIED');
   assert.equal(validateH3MediaMetadata({width:480,height:832,durationSeconds:10.125}, draft.target).width, 480);
   assert.equal(validateH3MediaMetadata({width:1920,height:1088,durationSeconds:5.167}, dualFiveSecondTarget).width, 1920);
