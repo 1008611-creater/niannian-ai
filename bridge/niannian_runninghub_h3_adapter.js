@@ -50,7 +50,7 @@ function createRunningHubH3Adapter(options = {}) {
   const baseUrl = String(options.baseUrl || process.env.RUNNINGHUB_BASE_URL || 'https://www.runninghub.cn').replace(/\/+$/, '');
   const timeoutMs = Math.max(5000, Number(options.timeoutMs || process.env.RUNNINGHUB_REQUEST_TIMEOUT_MS || 120000));
   if (!/^https:\/\//.test(baseUrl)) throw adapterError('RUNNINGHUB_PROFILE_INVALID', 'RunningHub 地址必须使用 HTTPS', 503);
-  function key() { const value = String(options.apiKey || process.env.NOMI_RUNNINGHUB_H3_API_KEY || '').trim(); if (!value) throw adapterError('RUNNINGHUB_CREDENTIAL_NOT_CONFIGURED', 'H3 消费级 RunningHub 凭据未配置', 503); return value; }
+  function key() { const value = String(options.apiKey || process.env.NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY || '').trim(); if (!value) throw adapterError('RUNNINGHUB_CREDENTIAL_NOT_CONFIGURED', 'H3 消费级 RunningHub 凭据未配置', 503); return value; }
   async function jsonRequest(endpoint, payload) {
     const authorizationKey = key();
     let response;

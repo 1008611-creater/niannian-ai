@@ -7,8 +7,9 @@ const path = require('path');
 const projectRoot = __dirname;
 const assetsRoot = path.join(projectRoot, 'studio', 'assets');
 const releaseTag = 'r(?:4|5|6)';
-const moduleCacheVersion = '20260816-studio-closure-r9';
+const moduleCacheVersion = '20260817-h3-dual-sample-r1';
 const studioClosureCacheVersion = '20260816-studio-closure-r9';
+const h3StudioClosureCacheVersion = '20260817-h3-dual-sample-r1';
 const starts = ['index-M-8MrEH2-r28-19b89ec-r6.js', 'web-runtime-adapter-r4.js'];
 
 function localReferences(source) {
@@ -71,7 +72,10 @@ for (const name of reachable) {
   assert.doesNotMatch(source, /\?v=20260809-static-r4(?:["')])/);
   assert.doesNotMatch(source, /\?v=20260811-static-r5(?:["')])/);
   if (localReferences(source).some(dependency => dependency.endsWith('.js'))) {
-    assert.match(source, new RegExp(`\\?v=${studioClosureCacheVersion}(?:["')])`), `Studio module is not in the current closure: ${name}`);
+    const expectedClosureVersion = source.includes(`NomiStudioApp-DDB0IgSO-r28-19b89ec-r6.js?v=${h3StudioClosureCacheVersion}`)
+      ? h3StudioClosureCacheVersion
+      : studioClosureCacheVersion;
+    assert.match(source, new RegExp(`\\?v=${expectedClosureVersion}(?:["')])`), `Studio module is not in the current closure: ${name}`);
   }
   assert.doesNotMatch(source, /(?:index-M-8MrEH2-r28-19b89ec|NomiStudioApp-DDB0IgSO-r28-19b89ec)-r4\.js\?v=20260816-batch-group-feedback-r8/);
   assert.doesNotMatch(source, /(?:index-M-8MrEH2-r28-19b89ec|NomiStudioApp-DDB0IgSO-r28-19b89ec)-r4\.js\?v=20260816-persisted-image-r1/);

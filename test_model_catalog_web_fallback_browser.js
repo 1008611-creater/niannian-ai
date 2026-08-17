@@ -18,7 +18,7 @@ async function waitForHealth(baseUrl) {
 
 async function main() {
   const studioIndex = require('node:fs').readFileSync(root + '/studio/index.html', 'utf8');
-  assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260817-generation-spec-r1/);
+  assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260817-h3-video-modes-r1/);
   const assetsDir = root + '/studio/assets';
   const cacheUsers = require('node:fs').readdirSync(assetsDir).filter(name => name.endsWith('.js')).map(name => require('node:fs').readFileSync(assetsDir + '/' + name, 'utf8')).filter(source => source.includes('modelCatalogCache-C1hWiSJp-r4.js?v=20260817-generation-spec-r1')).join('\n');
   assert.match(cacheUsers, /NomiStudioApp|useDedupedModelSelect|Generation|Creation|Canvas|applyCanvasToolCall/);
@@ -58,7 +58,14 @@ async function main() {
           enabled: true,
           priceCredits: 20,
           resolutions: ['2k'],
-          aspectRatios: ['9:16', '16:9', '1:1']
+          aspectRatios: ['9:16', '16:9', '1:1'],
+          videoModes: [
+            {id: 't2v', label: '文生视频', referenceContract: {images: 0, audio: 0, videos: 0}},
+            {id: 'first_last', label: '首尾帧生视频', referenceContract: {images: 2, audio: 0, videos: 0}},
+            {id: 'dual_sample', label: '双采重绘', referenceContract: {images: 1, audio: 0, videos: 0, aspectRatios: ['16:9'], resolutions: ['2k']}},
+            {id: 'omni_reference', label: '全能参考生视频', referenceContract: {images: 9, audio: 3, videos: 3}}
+          ],
+          videoOptions: {durationOptions: [4, 5, 10, 15], sizeOptions: [{value: '9:16', label: '9:16'}, {value: '16:9', label: '16:9'}, {value: '1:1', label: '1:1'}], resolutionOptions: [{value: '2k', label: '2K'}], defaultDurationSeconds: 5, defaultSize: '9:16', defaultResolution: '2k'}
         }]
       }
     };
@@ -66,11 +73,14 @@ async function main() {
     await page.goto(baseUrl + '/studio/index.html', {waitUntil: 'domcontentloaded'});
     const result = await page.evaluate(async () => {
       const fallback = await import('/studio/assets/modelCatalogWebFallback-r4.js');
+      const studio = await import('/studio/assets/NomiStudioApp-DDB0IgSO-r28-19b89ec-r6.js?v=20260817-h3-first-last-r2');
+      const native = studio.bx({modelKey: 'minimax-h3', modelAlias: 'minimax-h3', vendorKey: 'runninghub'});
       return {
         models: await fallback.webCatalogModels('image'),
         videoModels: await fallback.webCatalogModels('video'),
         health: await fallback.webCatalogHealth(),
-        vendors: await fallback.webCatalogVendors()
+        vendors: await fallback.webCatalogVendors(),
+        nativeH3: native && {id: native.id, modes: native.modes.map(mode => ({id: mode.id, slots: mode.slots.map(slot => ({kind: slot.kind, max: slot.max}))}))}
       };
     });
     assert.deepEqual(result.models.map(model => model.modelKey), ['yunwu-image-4k']);
@@ -84,6 +94,17 @@ async function main() {
       {value: '1:1', label: '1:1'}
     ]);
     assert.deepEqual(result.videoModels[0].meta.videoOptions.resolutionOptions, [{value: '2k', label: '2K'}]);
+    assert.deepEqual(result.videoModels[0].modes.map(mode => mode.id), ['t2v', 'first_last', 'dual_sample', 'omni_reference']);
+    assert.deepEqual(result.nativeH3, {
+      id: 'minimax-h3',
+      modes: [
+        {id: 't2v', slots: []},
+        {id: 'first_last', slots: [{kind: 'first_frame', max: 1}, {kind: 'last_frame', max: 1}]},
+        {id: 'dual_sample', slots: [{kind: 'image_ref', max: 1}]},
+        {id: 'omni_reference', slots: [{kind: 'image_ref', max: 9}, {kind: 'video_ref', max: 3}, {kind: 'audio_ref', max: 3}]}
+      ]
+    });
+    assert.deepEqual(result.videoModels[0].meta.videoOptions.durationOptions, [4, 5, 10, 15]);
     assert.equal(result.health.byKind.find(item => item.kind === 'image').enabledModels, 1);
     assert.deepEqual(result.vendors, [
       {key: 'yunwu-image', name: '云雾', enabled: true, authType: 'none', hasApiKey: true},

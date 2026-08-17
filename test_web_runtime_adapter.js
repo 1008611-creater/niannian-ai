@@ -7,10 +7,13 @@ const vm = require('vm');
 (async () => {
 const source = fs.readFileSync(require('path').join(__dirname, 'studio/assets/web-runtime-adapter-r4.js'), 'utf8');
 const studioIndex = fs.readFileSync(require('path').join(__dirname, 'studio/index.html'), 'utf8');
+const generationController = fs.readFileSync(require('path').join(__dirname, 'studio/assets/generationRunController-DH5v5RRt-r4.js'), 'utf8');
 assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=[A-Za-z0-9._-]+/);
 assert.match(source, /\/api\/canvas\/provider-status/);
 assert.match(source, /\/api\/projects\/.*\/canvas\/jobs/);
 assert.match(source, /\/api\/projects\/.*\/text\/jobs/);
+assert.match(source, /\/api\/studio\/spend-grants/);
+assert.match(source, /\/api\/studio\/tasks/);
 assert.match(source, /vendorKey: 'asxs'/);
 assert.match(source, /request\.kind === 'chat'/);
 assert.match(source, /confirmProviderSpend:\s*true/);
@@ -24,6 +27,8 @@ assert.match(source, /archetype:\s*\{id: 'happyhorse', modeId: 'edit'\}/);
 assert.match(source, /function projectThumbnailUrl\(value\)/);
 assert.match(source, /\/thumbnail/);
 assert.match(source, /webProjects = webProjects\.map\(function \(record\) \{ return projectSummary\(record, record\); \}\);/);
+assert.match(generationController, /referenceVideos:P\(t\.referenceVideos\)/);
+assert.match(generationController, /referenceAudios:P\(t\.referenceAudios\)/);
 
 const calls = [];
 const requestBodies = [];
@@ -70,6 +75,17 @@ const context = {
     if (pathname.endsWith('/canvas/jobs/CGJ-test/authorize')) {
       requestBodies.push(JSON.parse(options.body));
       return {ok:true,json:async() => ({job:{id:'CGJ-test',nodeType:'video',status:'running',outputAssetIds:[]}})};
+    }
+    if (pathname === '/api/studio/spend-grants') {
+      requestBodies.push(JSON.parse(options.body));
+      return {ok:true,json:async() => ({grantId:'studio-grant-test'})};
+    }
+    if (pathname === '/api/studio/tasks') {
+      requestBodies.push(JSON.parse(options.body));
+      return {ok:true,json:async() => ({result:{id:'studio-task-h3-test',kind:'text_to_video',provider:'runninghub-h3',status:'queued',mode:'omni_reference',parameters:{aspectRatio:'9:16',durationSeconds:5},assets:[]}})};
+    }
+    if (pathname.indexOf('/api/studio/tasks/studio-task-h3-test?') === 0) {
+      return {ok:true,json:async() => ({vendor:'runninghub-h3',result:{id:'studio-task-h3-test',kind:'text_to_video',provider:'runninghub-h3',status:'running',mode:'omni_reference',parameters:{aspectRatio:'9:16',durationSeconds:5},assets:[]}})};
     }
     if (pathname.endsWith('/assets') && options.method === 'POST') {
       uploadRequests.push({pathname, options});
@@ -165,5 +181,28 @@ assert.equal(requestBodies[8].model, 'yunfei-gpt-image-2-1k');
 assert.equal(requestBodies[8].resolution, '1k');
 assert.equal(requestBodies[8].outputSize, '1024x1024');
 assert.equal(requestBodies[8].aspectRatio, '1:1');
+const h3Task = await context.window.nomiDesktop.tasks.run({request:{kind:'text_to_video',prompt:'雨夜中人物回头',extras:{nodeId:'h3-node-1',modelKey:'minimax-h3',referenceImages:['CAS-image-1','CAS-image-2','CAS-image-3','CAS-image-4','CAS-image-5','CAS-image-6','CAS-image-7','CAS-image-8','CAS-image-9'],referenceAudios:['CAS-audio-1','CAS-audio-2','CAS-audio-3'],referenceVideos:['CAS-video-1','CAS-video-2','CAS-video-3'],aspectRatio:'9:16',durationSeconds:5}}});
+assert.equal(h3Task.id, 'studio-task-h3-test');
+assert.equal(requestBodies[11].projectId, 'NN-LOCAL-0001');
+assert.equal(requestBodies[11].request.kind, 'text_to_video');
+assert.equal(requestBodies[11].request.extras.archetypeInput.mode, 'omni_reference');
+assert.deepEqual(requestBodies[11].request.extras.archetypeInput.reference_image_asset_ids, ['CAS-image-1','CAS-image-2','CAS-image-3','CAS-image-4','CAS-image-5','CAS-image-6','CAS-image-7','CAS-image-8','CAS-image-9']);
+assert.deepEqual(requestBodies[11].request.extras.archetypeInput.reference_audio_asset_ids, ['CAS-audio-1','CAS-audio-2','CAS-audio-3']);
+assert.deepEqual(requestBodies[11].request.extras.archetypeInput.reference_video_asset_ids, ['CAS-video-1','CAS-video-2','CAS-video-3']);
+const h3Result = await context.window.nomiDesktop.tasks.result({taskId:h3Task.id});
+assert.equal(h3Result.vendor, 'runninghub-h3');
+assert.equal(h3Result.result.status, 'running');
+const firstLastTask = await context.window.nomiDesktop.tasks.run({request:{kind:'text_to_video',prompt:'从开场走到收束',extras:{nodeId:'h3-node-2',modelKey:'minimax-h3',firstFrameUrl:'CAS-first-frame',lastFrameUrl:'CAS-last-frame',aspectRatio:'9:16',durationSeconds:5}}});
+assert.equal(firstLastTask.id, 'studio-task-h3-test');
+const firstLastRequest = requestBodies.at(-1);
+assert.equal(firstLastRequest.request.extras.archetypeInput.mode, 'first_last');
+assert.deepEqual(firstLastRequest.request.extras.archetypeInput.reference_image_asset_ids, ['CAS-first-frame','CAS-last-frame']);
+assert.equal(firstLastRequest.request.extras.archetypeInput.first_frame_asset_id, 'CAS-first-frame');
+assert.equal(firstLastRequest.request.extras.archetypeInput.last_frame_asset_id, 'CAS-last-frame');
+const dualSampleTask = await context.window.nomiDesktop.tasks.run({request:{kind:'text_to_video',prompt:'单图双采重绘',extras:{nodeId:'h3-node-3',modelKey:'minimax-h3',h3Mode:'dual_sample',referenceImages:['CAS-dual-reference'],aspectRatio:'16:9',durationSeconds:7}}});
+assert.equal(dualSampleTask.id, 'studio-task-h3-test');
+const dualSampleRequest = requestBodies.at(-1);
+assert.equal(dualSampleRequest.request.extras.archetypeInput.mode, 'dual_sample');
+assert.deepEqual(dualSampleRequest.request.extras.archetypeInput.reference_image_asset_ids, ['CAS-dual-reference']);
 console.log('WEB_RUNTIME_ADAPTER_CONTRACT_OK');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

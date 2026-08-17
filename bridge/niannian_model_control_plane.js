@@ -71,6 +71,25 @@ function redactedProvider(provider) {
 }
 
 function publicCatalog(models, tenantId) {
+  const h3Modes = [
+    {id:'t2v', label:'文生视频', referenceContract:{images:0,audio:0,videos:0}},
+    {id:'first_last', label:'首尾帧生视频', referenceContract:{images:2,audio:0,videos:0}},
+    {id:'dual_sample', label:'双采重绘', referenceContract:{images:1,audio:0,videos:0,aspectRatios:['16:9'],resolutions:['2k']}},
+    {id:'omni_reference', label:'全能参考生视频', referenceContract:{images:9,audio:3,videos:3}}
+  ];
+  const h3VideoOptions = {
+    durationOptions:[4,5,10,15],
+    sizeOptions:[{value:'9:16',label:'9:16'},{value:'16:9',label:'16:9'},{value:'1:1',label:'1:1'}],
+    resolutionOptions:[{value:'2k',label:'2K'}],
+    defaultDurationSeconds:5,
+    defaultSize:'9:16',
+    defaultResolution:'2k',
+    controls:[
+      {key:'aspect_ratio',label:'比例',binding:'size',optionSource:'sizeOptions'},
+      {key:'duration',label:'时长',binding:'durationSeconds',optionSource:'durationOptions'},
+      {key:'resolution',label:'大小',binding:'resolution',optionSource:'resolutionOptions'}
+    ]
+  };
   return {
     schemaVersion: 'niannian.canvas_model_catalog.v1',
     tenantId,
@@ -82,7 +101,8 @@ function publicCatalog(models, tenantId) {
       priceCredits: Number(item.priceCredits),
       resolutions: item.resolutions || [],
       aspectRatios: item.aspectRatios || [],
-      outputSizes: item.outputSizes || {}
+      outputSizes: item.outputSizes || {},
+      ...(item.id === 'minimax-h3' ? {videoModes:h3Modes,videoOptions:h3VideoOptions} : {})
     }))
   };
 }

@@ -159,6 +159,23 @@
 
   var catalogState = {vendors: [], models: []};
 
+  function h3VideoOptions(item) {
+    var fallback = {
+      durationOptions: [4, 5, 10, 15],
+      sizeOptions: (item.aspectRatios || []).map(function (value) { return {value: String(value), label: String(value)}; }),
+      resolutionOptions: (item.resolutions || []).map(function (value) { return {value: String(value), label: String(value).toUpperCase()}; }),
+      defaultDurationSeconds: 5,
+      defaultSize: item.aspectRatios?.[0],
+      defaultResolution: item.resolutions?.[0],
+      controls: [
+        {key: 'aspect_ratio', label: '比例', binding: 'size', optionSource: 'sizeOptions'},
+        {key: 'duration', label: '时长', binding: 'durationSeconds', optionSource: 'durationOptions'},
+        {key: 'resolution', label: '大小', binding: 'resolution', optionSource: 'resolutionOptions'}
+      ]
+    };
+    return item.videoOptions && typeof item.videoOptions === 'object' ? item.videoOptions : fallback;
+  }
+
   function catalogForStatus(status) {
     // Server model catalog is the only browser-facing configuration surface.
     // It contains enabled models and prices, never provider URLs or credentials.
@@ -175,23 +192,20 @@
           labelZh: item.label || item.id,
           kind: item.kind,
           enabled: true,
+          ...(item.id === 'minimax-h3' ? {
+            modes: (item.videoModes || []).map(function (mode) {
+              return {id: mode.id, labelZh: mode.label, transportTaskKind: 'text_to_video', meta: {referenceContract: mode.referenceContract || {}}};
+            })
+          } : {}),
           pricing: {cost: Number(item.priceCredits || 0), enabled: true, specCosts: []},
           meta: {
             transportTaskKind: item.kind === 'video' ? 'text_to_video' : 'image_edit',
+            ...(item.id === 'minimax-h3' ? {archetype: {id: 'minimax-h3', modeId: 't2v'}, h3Modes: item.videoModes || []} : {}),
             supportedResolutions: item.resolutions || [],
             supportedAspectRatios: item.aspectRatios || [],
             outputSizes: item.outputSizes || {},
             ...(item.kind === 'video' ? {
-              videoOptions: {
-                sizeOptions: (item.aspectRatios || []).map(function (value) { return {value: String(value), label: String(value)}; }),
-                resolutionOptions: (item.resolutions || []).map(function (value) { return {value: String(value), label: String(value).toUpperCase()}; }),
-                defaultSize: item.aspectRatios?.[0],
-                defaultResolution: item.resolutions?.[0],
-                controls: [
-                  {key: 'aspect_ratio', label: '比例', binding: 'size', optionSource: 'sizeOptions'},
-                  {key: 'resolution', label: '大小', binding: 'resolution', optionSource: 'resolutionOptions'}
-                ]
-              }
+              videoOptions: h3VideoOptions(item)
             } : {
               imageOptions: {
                 aspectRatioOptions: (item.aspectRatios || []).map(function (value) { return {value: String(value), label: String(value)}; }),
@@ -341,6 +355,62 @@
     return uniqueAssetIds(values);
   }
 
+  function isNomiH3(extras) {
+    return [extras && extras.modelKey, extras && extras.modelAlias].some(function (value) {
+      return ['niannian/minimax-h3','minimax-h3','minimax-h3-fl2va','minimax_h3_fl2va'].includes(String(value || '').trim().toLowerCase());
+    });
+  }
+
+  function valuesFrom(input, keys) {
+    var values = [];
+    keys.forEach(function (key) {
+      var value = input && input[key];
+      if (Array.isArray(value)) values = values.concat(value);
+      else if (typeof value === 'string') values.push(value);
+    });
+    return values;
+  }
+
+  function h3ArchetypeInput(extras) {
+    var existing = extras && extras.archetypeInput && typeof extras.archetypeInput === 'object' && !Array.isArray(extras.archetypeInput) ? extras.archetypeInput : {};
+    var referenceImages = valuesFrom(existing, ['reference_image_asset_ids','reference_image_urls','reference_image'])
+      .concat(valuesFrom(extras, ['referenceImages']));
+    var firstFrames = valuesFrom(existing, ['first_frame_asset_id','first_frame_image','first_frame_url'])
+      .concat(valuesFrom(extras, ['firstFrameUrl']));
+    var lastFrames = valuesFrom(existing, ['last_frame_asset_id','last_frame_image','last_frame_url'])
+      .concat(valuesFrom(extras, ['lastFrameUrl']));
+    var audio = valuesFrom(existing, ['reference_audio_asset_ids','reference_audio_urls','reference_audio'])
+      .concat(valuesFrom(extras, ['referenceAudios','referenceAudioUrl','audioUrl']));
+    var videos = valuesFrom(existing, ['reference_video_asset_ids','reference_video_urls','reference_video'])
+      .concat(valuesFrom(extras, ['referenceVideos','sourceVideoUrl','relayFromVideoUrl']));
+    var explicitMode = String(existing.mode || existing.mode_id || extras.h3Mode || '').trim();
+    var mode = explicitMode || String(extras.archetype?.modeId || '').trim();
+    var images = referenceImages.concat(firstFrames, lastFrames);
+    // 新节点默认是文生；一旦画布连入已保存的参考素材，按实际槽位自动切换，
+    // 避免默认模式把图生或全能参考误报为文生输入错误。
+    if (!explicitMode) {
+      if (firstFrames.length === 1 && lastFrames.length === 1 && !audio.length && !videos.length) mode = 'first_last';
+      else if (images.length === 9 && audio.length === 3 && videos.length === 3) mode = 'omni_reference';
+      else if (!images.length && !audio.length && !videos.length) mode = 't2v';
+      else mode = '';
+    }
+    var firstFrame = uniqueAssetIds(firstFrames)[0];
+    var lastFrame = uniqueAssetIds(lastFrames)[0];
+    if (mode === 'first_last' && firstFrame && lastFrame) images = [firstFrame, lastFrame];
+    return {
+      ...(mode ? {mode: mode} : {}),
+      reference_image_asset_ids: uniqueAssetIds(images),
+      ...(firstFrame ? {first_frame_asset_id:firstFrame} : {}),
+      ...(lastFrame ? {last_frame_asset_id:lastFrame} : {}),
+      reference_audio_asset_ids: uniqueAssetIds(audio),
+      reference_video_asset_ids: uniqueAssetIds(videos),
+      aspect_ratio: existing.aspect_ratio || extras.aspectRatio || '9:16',
+      duration_seconds: existing.duration_seconds || extras.durationSeconds || 5,
+      ...(existing.width ? {width: existing.width} : {}),
+      ...(existing.height ? {height: existing.height} : {})
+    };
+  }
+
   function isAnimateTransfer(extras) {
     return [extras && extras.modelKey, extras && extras.modelAlias].some(function (value) {
       return ['runninghub-animate-motion-transfer','runninghub-animate-ai-app'].includes(String(value || '').trim().toLowerCase());
@@ -476,6 +546,17 @@
       return {type: type, assetId: assetId, url: '/api/projects/' + encodeURIComponent(project) + '/assets/' + encodeURIComponent(assetId) + '/download'};
     });
     return {id: job.id, kind: kind, status: job.status === 'awaiting_authorization' ? 'queued' : job.status, assets: assets, raw: {jobId: job.id, imageChannel: job.imageChannel || null, outputSize: job.outputSize || null, aspectRatio: job.aspectRatio || null}, error: job.error || undefined};
+  }
+
+  function taskFromNomiH3(task) {
+    return {
+      id: task.id,
+      kind: task.kind || 'text_to_video',
+      status: task.status,
+      assets: task.assets || [],
+      raw: {provider: task.provider || 'runninghub-h3', mode: task.mode || null, parameters: task.parameters || {}},
+      error: task.error || undefined
+    };
   }
 
   function taskFromTextJob(job) {
@@ -789,6 +870,34 @@
       return taskFromTextJob(textPrepared.job);
     }
     var video = request.kind === 'text_to_video' || request.kind === 'image_to_video';
+    if (video && isNomiH3(extras)) {
+      var h3Input = h3ArchetypeInput(extras);
+      var grant = await api('/api/studio/spend-grants', {
+        method: 'POST', headers: {'content-type': 'application/json'},
+        body: JSON.stringify({projectId: project, projectKind: canvasProjectKind(), nodeIds: [nodeId]})
+      });
+      if (!grant.grantId) throw new Error('服务器没有返回视频生成确认');
+      var h3Response = await api('/api/studio/tasks', {
+        method: 'POST', headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          projectId: project,
+          projectKind: canvasProjectKind(),
+          vendor: 'runninghub',
+          request: {kind: 'text_to_video', prompt: request.prompt || '', extras: {
+            grantId: grant.grantId,
+            nodeId: nodeId,
+            idempotencyKey: extras.idempotencyKey || idempotency('nomi-h3'),
+            modelKey: extras.modelKey || extras.modelAlias || 'minimax-h3',
+            h3Mode: h3Input.mode || undefined,
+            aspectRatio: h3Input.aspect_ratio,
+            durationSeconds: h3Input.duration_seconds,
+            archetypeInput: h3Input
+          }}
+        })
+      });
+      if (!h3Response.result) throw new Error('服务器没有返回 H3 视频任务');
+      return taskFromNomiH3(h3Response.result);
+    }
     var animateTransfer = video && isAnimateTransfer(extras);
     var prepared = await api('/api/projects/' + encodeURIComponent(project) + '/canvas/jobs', {
       method: 'POST',
@@ -823,7 +932,12 @@
       var textResponse = await api('/api/projects/' + encodeURIComponent(project) + '/text/jobs/' + encodeURIComponent(payload.taskId) + '?projectKind=' + encodeURIComponent(canvasProjectKind()));
       return {vendor: 'asxs', result: taskFromTextJob(textResponse.job)};
     }
-    var response = await api('/api/projects/' + encodeURIComponent(project) + '/canvas/jobs/' + encodeURIComponent(payload.taskId) + '?projectKind=' + encodeURIComponent(canvasProjectKind()));
+    var taskId = String(payload && (payload.taskId || payload.id) || '');
+    if (taskId.indexOf('studio-task-') === 0) {
+      var h3Task = await api('/api/studio/tasks/' + encodeURIComponent(taskId) + '?projectId=' + encodeURIComponent(project));
+      return {vendor: h3Task.vendor || 'runninghub-h3', result: taskFromNomiH3(h3Task.result || {})};
+    }
+    var response = await api('/api/projects/' + encodeURIComponent(project) + '/canvas/jobs/' + encodeURIComponent(taskId) + '?projectKind=' + encodeURIComponent(canvasProjectKind()));
     return {vendor: response.job && response.job.imageChannel ? response.job.imageChannel : 'runninghub', result: taskFromCanvasJob(response.job, project)};
   }
 

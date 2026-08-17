@@ -8107,8 +8107,11 @@ function studioTaskResult(record) {
   return {
     id:record.id,
     kind:'text_to_video',
+    provider:'runninghub-h3',
     status:record.status,
     assets:record.assets || [],
+    ...(record.mode ? {mode:record.mode} : {}),
+    ...(record.parameters ? {parameters:record.parameters} : {}),
     ...(record.error ? {error:record.error} : {})
   };
 }
@@ -8495,12 +8498,16 @@ async function publicStudioProjectMetadataForUser(user, owned, record = null) {
   return metadata;
 }
 
-async function resolveStudioProjectAssets(user, owned, values, kind) {
+async function resolveStudioProjectAssets(user, owned, values, kind, limit) {
   if (!Array.isArray(values)) return [];
+  if (Number.isInteger(limit) && values.length > limit) throw Object.assign(new Error('参考素材数量超过当前 H3 模式上限'), {code:'STUDIO_ASSET_REFERENCE_LIMIT',httpStatus:422});
   const resolved = [];
+  const seen = new Set();
   for (const value of values) {
     const assetId = studioAssetIdFromReference(value);
     if (!assetId) throw Object.assign(new Error('请先将参考素材保存到当前项目'), {code:'STUDIO_ASSET_REFERENCE_INVALID',httpStatus:422});
+    if (seen.has(assetId)) throw Object.assign(new Error('同一参考素材不能重复占用多个 H3 槽位'), {code:'STUDIO_ASSET_REFERENCE_DUPLICATE',httpStatus:422});
+    seen.add(assetId);
     const asset = await canvasAssetService.getOwned(user.id, owned.project.id, assetId);
     if (!asset || asset.projectKind !== owned.projectKind || asset.kind !== kind) throw Object.assign(new Error('参考素材不存在、类型不匹配或不属于当前项目'), {code:'STUDIO_ASSET_REFERENCE_FORBIDDEN',httpStatus:422});
     resolved.push(asset);
@@ -8953,14 +8960,22 @@ async function handleStudioTaskApi(request, response, pathname, user) {
       const node = await nomiGenerationNode(owned.project, owned.projectKind, nodeId);
       if (!node) return json(response, 404, {code:'NOMI_GENERATION_NODE_NOT_FOUND',error:'Nomi 画布节点不存在或尚未保存，请保存当前项目后再生成'});
       if (!isNomiH3Node(node) || !requestedNomiH3Model(body.request)) return json(response, 422, {code:'NOMI_H3_NODE_REQUIRED',error:'当前节点不是已启用的 MiniMax H3 视频节点'});
-      const input = body.request?.extras?.archetypeInput || {};
+      const rawInput = body.request?.extras?.archetypeInput;
+      const input = rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput) ? rawInput : {};
+      const requestedMode = canvasText(input.mode || input.mode_id || body.request?.extras?.h3Mode || body.request?.extras?.archetype?.modeId, 40);
       // 新版 Nomi 网页端传 assetId；仅在同项目受保护下载路径的迁移窗口内兼容 URL。
       // 任何 blob:/data:/外链/Provider 临时地址都会由 resolveStudioProjectAssets 拒绝。
-      const images = await resolveStudioProjectAssets(user, owned, input.reference_image_asset_ids || input.reference_image_urls || [], 'reference_image');
-      const audio = await resolveStudioProjectAssets(user, owned, input.reference_audio_asset_ids || input.reference_audio_urls || [], 'reference_audio');
-      const videos = await resolveStudioProjectAssets(user, owned, input.reference_video_asset_ids || input.reference_video_urls || [], 'reference_video');
+      const firstFrame = input.first_frame_asset_id || input.first_frame_image || input.first_frame_url;
+      const lastFrame = input.last_frame_asset_id || input.last_frame_image || input.last_frame_url;
+      const imageReferences = requestedMode === 'first_last' && (firstFrame || lastFrame)
+        ? [firstFrame, lastFrame].filter(Boolean)
+        : (input.reference_image_asset_ids || input.reference_image_urls || []);
+      const images = await resolveStudioProjectAssets(user, owned, imageReferences, 'reference_image', 9);
+      const audio = await resolveStudioProjectAssets(user, owned, input.reference_audio_asset_ids || input.reference_audio_urls || [], 'reference_audio', 3);
+      const videos = await resolveStudioProjectAssets(user, owned, input.reference_video_asset_ids || input.reference_video_urls || [], 'reference_video', 3);
       const h3Input = {
         prompt:canvasText(body.request?.prompt, 4000),
+        mode:requestedMode || undefined,
         aspectRatio:canvasText(input.aspect_ratio || body.request?.extras?.aspectRatio || '16:9', 16),
         durationSeconds:Number(input.duration_seconds || body.request?.extras?.durationSeconds || 5),
         width:Number(input.width || body.request?.width) || undefined,
@@ -8976,7 +8991,7 @@ async function handleStudioTaskApi(request, response, pathname, user) {
           modelKey:canvasText(body.request?.extras?.modelKey, 160),
           prompt:h3Input.prompt,
           inputAssetIds:{images:images.map(asset => asset.id),audio:audio.map(asset => asset.id),videos:videos.map(asset => asset.id)},
-          parameters:{aspectRatio:draft.target.aspectRatio,durationSeconds:draft.target.durationSeconds,width:draft.target.width,height:draft.target.height}
+          parameters:{aspectRatio:draft.target.aspectRatio,durationSeconds:draft.target.durationSeconds,width:draft.target.width,height:draft.target.height,exactDimensions:draft.target.exactDimensions !== false,resolution:draft.target.resolution || null}
         }
       });
       if (!claimed.created) return json(response, 202, {result:studioTaskResult(claimed.task),idempotent:true});
@@ -9005,10 +9020,10 @@ async function handleStudioTaskApi(request, response, pathname, user) {
       try {
         const current = await nomiWebH3.query(record.providerTaskId);
         if (current.status === 'succeeded') {
-          nomiRunningHubH3.verifyConsumerUsage(current.usage);
+          const providerUsage = nomiRunningHubH3.normalizeProviderUsage(current.usage);
           const asset = await downloadStudioGeneratedVideo(user, owned, current.videoUrls[0], record.id, record.parameters);
           await writeNomiGeneratedVideoResult(user, owned, record.nodeId, asset);
-          record = await nomiWebTaskStore.updateOwnedTask(user.id, projectId, record.id, {status:'succeeded',outputAssetIds:[asset.id],assets:[{type:'video',assetId:asset.id,url:asset.downloadUrl}],completedAt:new Date().toISOString(),error:null});
+          record = await nomiWebTaskStore.updateOwnedTask(user.id, projectId, record.id, {status:'succeeded',outputAssetIds:[asset.id],assets:[{type:'video',assetId:asset.id,url:asset.downloadUrl}],providerUsage,completedAt:new Date().toISOString(),error:null});
         } else {
           record = await nomiWebTaskStore.updateOwnedTask(user.id, projectId, record.id, {status:current.status,error:current.status === 'failed' ? '视频生成失败，请检查提示词或稍后重试。' : null});
         }

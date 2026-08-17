@@ -12,7 +12,7 @@ function run() {
   const configured = readCanvasProviderConfig({
     AGENT_VAULT_ADDR:'http://127.0.0.1:14321', AGENT_VAULT_VAULT:'niannian-production', AGENT_VAULT_TOKEN:'protected-test-token', HTTPS_PROXY:'http://127.0.0.1:14322', NIANNIAN_CANVAS_YUNWU_SUBMIT:'on',
     NIANNIAN_CANVAS_H3_SUBMIT: 'on',
-    NOMI_RUNNINGHUB_H3_API_KEY:'configured-consumer-key-only-in-test',
+    NIANNIAN_RUNNINGHUB_H3_CONSUMER_API_KEY:'configured-consumer-key-only-in-test',
     NIANNIAN_RUNNINGHUB_ANIMATE_API_KEY:'configured-consumer-key-only-in-test',
     NIANNIAN_CANVAS_ANIMATE_SUBMIT:'on'
   });
