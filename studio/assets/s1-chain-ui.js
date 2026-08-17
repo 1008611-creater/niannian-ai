@@ -61,6 +61,7 @@
       '#s1-chain-canvas[data-s1-empty=true]>.s1-chain-title,#s1-chain-canvas[data-s1-empty=true]>.s1-chain-flow>.s1-edge,#s1-chain-canvas[data-s1-empty=true]>.s1-chain-flow>.s1-node,#s1-chain-canvas .s1-chain-title[hidden],#s1-chain-canvas .s1-edge[hidden],#s1-chain-canvas .s1-node[hidden]{display:none!important}@media (max-width:900px){#s1-chain-canvas{padding:72px 14px 30px}#s1-chain-canvas .s1-chain-flow{min-width:1680px}}@media (max-width:600px){#s1-chain-canvas{padding-top:62px}#s1-chain-canvas .s1-chain-title{margin-bottom:12px}}'
     ].join('');
     style.textContent += '#s1-chain-canvas .s1-skill-node{width:300px;min-height:0;padding:0;overflow:hidden;border:1px solid rgba(90,64,42,.22);border-top:3px solid #9a6a3c;border-radius:9px;background:#fffdf9;box-shadow:0 8px 24px rgba(42,33,24,.12)}#s1-chain-canvas .s1-skill-node .s1-skill-head{display:flex;align-items:center;gap:8px;padding:10px 42px 8px 13px;border-bottom:1px solid rgba(90,64,42,.12);background:#fffaf3;cursor:grab;touch-action:none}#s1-chain-canvas .s1-skill-node.s1-dragging .s1-skill-head{cursor:grabbing}#s1-chain-canvas .s1-skill-node .s1-skill-icon{display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:#efe2d2;color:#8d5d38;font-size:11px;font-weight:800}#s1-chain-canvas .s1-skill-node .s1-skill-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:750;color:#2a2118}#s1-chain-canvas .s1-skill-node .s1-skill-version{margin-left:auto;color:#8b7764;font-size:10px}#s1-chain-canvas .s1-skill-node .s1-skill-body{padding:12px 13px 13px}#s1-chain-canvas .s1-skill-node .s1-skill-body>h3{margin:0 0 5px;font-size:15px;cursor:default}#s1-chain-canvas .s1-skill-node .s1-skill-body>p{margin:0 0 10px}#s1-chain-canvas .s1-skill-node .s1-skill-foot{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;border-top:1px solid rgba(90,64,42,.12)}#s1-chain-canvas .s1-skill-node .s1-skill-foot button{flex:1 1 76px;min-height:28px}#s1-chain-canvas .s1-skill-node [data-s1-delete]{z-index:2;top:8px;right:9px;width:24px;height:24px}#s1-chain-canvas .s1-skill-node .s1-ports{margin:9px 0 4px}#s1-chain-canvas .s1-skill-node textarea{box-sizing:border-box;width:100%;resize:vertical}#s1-chain-canvas .s1-node[data-champion-node]{width:322px;min-height:0;padding:0;overflow:hidden;border-top:0;border-radius:8px}#s1-chain-canvas .s1-champion-topline{display:flex;align-items:center;gap:8px;padding:13px 44px 0 14px;color:#74695e;font-size:10px;line-height:1.2;cursor:grab;touch-action:none}#s1-chain-canvas .s1-champion-role{font-weight:750;letter-spacing:.08em;color:#426f83}#s1-chain-canvas .s1-champion-skill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8a8077}#s1-chain-canvas .s1-champion-status{margin-left:auto;padding:3px 6px;border:1px solid rgba(58,55,49,.14);border-radius:4px;background:#f4f0ea;color:#665d55;font-size:10px;font-weight:700;white-space:nowrap}#s1-chain-canvas .s1-node[data-champion-node] h3{margin:6px 14px 2px;color:#292725;font-size:17px;line-height:1.25}#s1-chain-canvas .s1-node[data-champion-node] .s1-champion-note{margin:0 14px 13px;color:#70675f;font-size:12px;line-height:1.5}#s1-chain-canvas .s1-champion-io{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:0;border-top:1px solid #e8e0d8;border-bottom:1px solid #e8e0d8;background:#faf7f2}#s1-chain-canvas .s1-champion-io .s1-port-group{min-width:0;padding:10px 12px}#s1-chain-canvas .s1-champion-editor{display:grid;gap:6px;margin:13px 14px 0;font-size:11px;font-weight:700}#s1-chain-canvas .s1-champion-editor textarea{box-sizing:border-box;width:100%;min-height:66px;padding:8px;resize:vertical}#s1-chain-canvas .s1-champion-readiness{margin:10px 14px 0;padding:8px 9px;border-left:3px solid #cbb9a4;background:#f5f0e9;font-size:11px}#s1-chain-canvas .s1-champion-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 14px 0}#s1-chain-canvas .s1-champion-actions button{min-height:32px;font-size:11px}#s1-chain-canvas .s1-champion-actions [data-champion-run]{grid-column:1 / -1;background:#2f4f5c;color:#fff}#s1-chain-canvas .s1-champion-contract{margin:10px 14px 14px;padding-top:9px;border-top:1px solid #eee7df;font-size:10px;line-height:1.45}';
+    style.textContent += '#s1-chain-canvas .s1-legacy-skill-node{width:300px;min-height:0;padding:0;overflow:hidden;border:1px solid rgba(90,64,42,.22);border-top:3px solid #9a6a3c;border-radius:9px;background:#fffdf9;box-shadow:0 8px 24px rgba(42,33,24,.12)}#s1-chain-canvas .s1-legacy-skill-node .s1-skill-head{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:10px 42px 8px 13px;border-bottom:1px solid rgba(90,64,42,.12);background:#fffaf3;cursor:grab;touch-action:none}#s1-chain-canvas .s1-legacy-skill-node .s1-skill-head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:750;color:#2a2118}#s1-chain-canvas .s1-legacy-skill-node .s1-skill-head small{margin-left:auto;color:#8b7764;font-size:10px}#s1-chain-canvas .s1-legacy-skill-node>h3,#s1-chain-canvas .s1-legacy-skill-node>p,#s1-chain-canvas .s1-legacy-skill-node>.s1-contract,#s1-chain-canvas .s1-legacy-skill-node>.s1-port-state,#s1-chain-canvas .s1-legacy-skill-node>.s1-status,#s1-chain-canvas .s1-legacy-skill-node>.s1-assets,#s1-chain-canvas .s1-legacy-skill-node>.s1-row,#s1-chain-canvas .s1-legacy-skill-node>.s1-ports,#s1-chain-canvas .s1-legacy-skill-node>.s1-preview{margin-left:13px;margin-right:13px}#s1-chain-canvas .s1-legacy-skill-node>h3{margin-top:0;font-size:15px}#s1-chain-canvas .s1-legacy-skill-node>p{margin-bottom:12px}#s1-chain-canvas .s1-legacy-skill-node [data-s1-delete]{z-index:2;top:8px;right:9px;width:24px;height:24px}';
     document.head.appendChild(style);
   }
 
@@ -192,6 +193,26 @@
       }
     }
     installH3NodeCard();
+    function upgradeLegacySkillCard(key, skillLabel) {
+      var card = panel.querySelector('[data-node="' + key + '"]');
+      if (!card || card.classList.contains('s1-legacy-skill-node')) return;
+      var meta = card.querySelector('.s1-meta');
+      if (!meta) return;
+      card.classList.add('s1-skill-node', 's1-legacy-skill-node');
+      meta.classList.add('s1-skill-head');
+      meta.dataset.s1DragHandle = 'true';
+      meta.setAttribute('role', 'button');
+      meta.setAttribute('tabindex', '0');
+      meta.setAttribute('aria-label', '拖动 ' + skillLabel + ' 节点');
+      var label = meta.querySelector('span');
+      if (label) label.textContent = skillLabel;
+      var status = meta.querySelector('[data-node-status]');
+      if (status) status.classList.add('s1-skill-version');
+    }
+    upgradeLegacySkillCard('step01', 'Skill 节点 · mx-shortdrama-01');
+    upgradeLegacySkillCard('step02', 'Skill 节点 · mx-shortdrama-02');
+    upgradeLegacySkillCard('image2', 'Skill 节点 · image2-storyboard-video');
+    upgradeLegacySkillCard('h3', 'Skill 节点 · minimaxh3skill');
     var h3Card = panel.querySelector('[data-node="h3"]');
     var h3Prompt = panel.querySelector('[data-s3-prompt]');
     var h3Aspect = panel.querySelector('[data-s3-aspect]');
@@ -303,8 +324,10 @@
       });
       [['source','step01','source-step01'],['step01','step02','step01-step02'],['step02','image2','step02-image2']].forEach(function (item) {
         var a = positionOf(item[0]), b = positionOf(item[1]), edge = panel.querySelector('[data-edge="' + item[2] + '"]');
-        var dx = b.x - a.x - 276, dy = b.y - a.y, width = Math.max(20, Math.sqrt(dx * dx + dy * dy));
-        edge.style.left = String(a.x + 276) + 'px'; edge.style.top = String(a.y + 112) + 'px'; edge.style.width = String(width) + 'px'; edge.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
+        var sourceCard = panel.querySelector('[data-node="' + item[0] + '"]');
+        var nodeWidth = sourceCard ? sourceCard.offsetWidth : 276;
+        var dx = b.x - a.x - nodeWidth, dy = b.y - a.y, width = Math.max(20, Math.sqrt(dx * dx + dy * dy));
+        edge.style.left = String(a.x + nodeWidth) + 'px'; edge.style.top = String(a.y + 112) + 'px'; edge.style.width = String(width) + 'px'; edge.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
       });
       window.requestAnimationFrame(renderTypedEdges);
     }
