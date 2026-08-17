@@ -8991,7 +8991,7 @@ async function handleStudioTaskApi(request, response, pathname, user) {
           modelKey:canvasText(body.request?.extras?.modelKey, 160),
           prompt:h3Input.prompt,
           inputAssetIds:{images:images.map(asset => asset.id),audio:audio.map(asset => asset.id),videos:videos.map(asset => asset.id)},
-          parameters:{aspectRatio:draft.target.aspectRatio,durationSeconds:draft.target.durationSeconds,width:draft.target.width,height:draft.target.height}
+          parameters:{aspectRatio:draft.target.aspectRatio,durationSeconds:draft.target.durationSeconds,width:draft.target.width,height:draft.target.height,exactDimensions:draft.target.exactDimensions !== false,resolution:draft.target.resolution || null}
         }
       });
       if (!claimed.created) return json(response, 202, {result:studioTaskResult(claimed.task),idempotent:true});

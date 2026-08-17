@@ -62,6 +62,7 @@ async function main() {
           videoModes: [
             {id: 't2v', label: '文生视频', referenceContract: {images: 0, audio: 0, videos: 0}},
             {id: 'first_last', label: '首尾帧生视频', referenceContract: {images: 2, audio: 0, videos: 0}},
+            {id: 'dual_sample', label: '双采重绘', referenceContract: {images: 1, audio: 0, videos: 0, aspectRatios: ['16:9'], resolutions: ['2k']}},
             {id: 'omni_reference', label: '全能参考生视频', referenceContract: {images: 9, audio: 3, videos: 3}}
           ],
           videoOptions: {durationOptions: [4, 5, 10, 15], sizeOptions: [{value: '9:16', label: '9:16'}, {value: '16:9', label: '16:9'}, {value: '1:1', label: '1:1'}], resolutionOptions: [{value: '2k', label: '2K'}], defaultDurationSeconds: 5, defaultSize: '9:16', defaultResolution: '2k'}
@@ -93,12 +94,13 @@ async function main() {
       {value: '1:1', label: '1:1'}
     ]);
     assert.deepEqual(result.videoModels[0].meta.videoOptions.resolutionOptions, [{value: '2k', label: '2K'}]);
-    assert.deepEqual(result.videoModels[0].modes.map(mode => mode.id), ['t2v', 'first_last', 'omni_reference']);
+    assert.deepEqual(result.videoModels[0].modes.map(mode => mode.id), ['t2v', 'first_last', 'dual_sample', 'omni_reference']);
     assert.deepEqual(result.nativeH3, {
       id: 'minimax-h3',
       modes: [
         {id: 't2v', slots: []},
         {id: 'first_last', slots: [{kind: 'first_frame', max: 1}, {kind: 'last_frame', max: 1}]},
+        {id: 'dual_sample', slots: [{kind: 'image_ref', max: 1}]},
         {id: 'omni_reference', slots: [{kind: 'image_ref', max: 9}, {kind: 'video_ref', max: 3}, {kind: 'audio_ref', max: 3}]}
       ]
     });

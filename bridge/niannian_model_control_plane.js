@@ -74,6 +74,7 @@ function publicCatalog(models, tenantId) {
   const h3Modes = [
     {id:'t2v', label:'文生视频', referenceContract:{images:0,audio:0,videos:0}},
     {id:'first_last', label:'首尾帧生视频', referenceContract:{images:2,audio:0,videos:0}},
+    {id:'dual_sample', label:'双采重绘', referenceContract:{images:1,audio:0,videos:0,aspectRatios:['16:9'],resolutions:['2k']}},
     {id:'omni_reference', label:'全能参考生视频', referenceContract:{images:9,audio:3,videos:3}}
   ];
   const h3VideoOptions = {

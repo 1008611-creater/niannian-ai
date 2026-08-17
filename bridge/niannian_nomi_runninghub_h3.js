@@ -4,6 +4,9 @@ const path = require('path');
 const BASE_URL = 'https://www.runninghub.cn';
 const TEXT_WORKFLOW_ID = '2084079636237078529';
 const FIRST_LAST_WORKFLOW = Object.freeze({workflowId:'2084070256573767682',endpointPath:'/openapi/v2/run/workflow/2084070256573767682',firstFrameNode:'6',lastFrameNode:'4',targetNode:'7',promptNode:'8'});
+// RunningHub API graph: one reference image, prompt expansion, then two sampling passes.
+// The exported graph proves these node IDs and only its 16:9 preset; do not invent other fields.
+const DUAL_SAMPLE_WORKFLOW = Object.freeze({workflowId:'2089232623242670081',endpointPath:'/openapi/v2/run/workflow/2089232623242670081',imageNode:'137',promptNode:'138',durationNode:'132',firstPassResolutionNode:'115',secondPassResolutionNode:'214',aspectRatio:'16:9',aspectRatioValue:'16:9 (Widescreen)',resolution:'2k'});
 const MULTIMODAL_WORKFLOW_ID = '2085082190681038850';
 const IMAGE_NODES = ['4', '19', '20', '21', '25', '27', '29', '31', '33'];
 const AUDIO_NODES = ['23', '35', '37'];
@@ -15,6 +18,7 @@ const DEFAULT_IMAGE_WORKFLOWS = Object.freeze({
 const H3_MODES = Object.freeze({
   t2v: Object.freeze({id:'t2v', label:'文生视频', images:0, audio:0, videos:0}),
   first_last: Object.freeze({id:'first_last', label:'首尾帧生视频', images:2, audio:0, videos:0}),
+  dual_sample: Object.freeze({id:'dual_sample', label:'双采重绘', images:1, audio:0, videos:0}),
   omni_reference: Object.freeze({id:'omni_reference', label:'全能参考生视频', images:9, audio:3, videos:3})
 });
 
@@ -67,16 +71,25 @@ function targetFor(input = {}) {
   return target;
 }
 
+function dualSampleTargetFor(input = {}) {
+  const aspectRatio = String(input.aspectRatio || DUAL_SAMPLE_WORKFLOW.aspectRatio).trim();
+  if (aspectRatio !== DUAL_SAMPLE_WORKFLOW.aspectRatio) throw taskError('NOMI_H3_DUAL_SAMPLE_ASPECT_RATIO_UNVERIFIED', '双采重绘当前仅验证 16:9 画幅');
+  const durationSeconds = positiveInteger(input.durationSeconds, 7);
+  if (durationSeconds < 5 || durationSeconds > 15) throw taskError('NOMI_H3_DUAL_SAMPLE_DURATION_OUT_OF_RANGE', '双采重绘时长必须在 5 到 15 秒之间');
+  return {aspectRatio,durationSeconds,width:null,height:null,exactDimensions:false,resolution:DUAL_SAMPLE_WORKFLOW.resolution};
+}
+
 function requestedMode(input = {}) {
   const raw = String(input.mode || input.modeId || input.referenceMode || '').trim().toLowerCase();
   if (!raw) return null;
   const aliases = {
     text:'t2v', text_to_video:'t2v', t2v:'t2v',
     first_last:'first_last', 'first-last':'first_last', first_last_frame:'first_last', first_last_frame_to_video:'first_last', image_to_video:'first_last', i2v:'first_last',
+    dual_sample:'dual_sample', 'dual-sample':'dual_sample', dual_sampling:'dual_sample', dual_sample_redraw:'dual_sample',
     omni:'omni_reference', omnireference:'omni_reference', omni_reference:'omni_reference', multimodal:'omni_reference', multimodal_9i3a3v:'omni_reference', 'multimodal-9i3a3v':'omni_reference'
   };
   const mode = aliases[raw];
-  if (!mode) throw taskError('NOMI_H3_MODE_INVALID', 'H3 模式无效，仅支持文生视频、首尾帧生视频或全能参考生视频');
+  if (!mode) throw taskError('NOMI_H3_MODE_INVALID', 'H3 模式无效，仅支持文生视频、首尾帧生视频、双采重绘或全能参考生视频');
   return mode;
 }
 
@@ -179,6 +192,16 @@ function createNomiRunningHubH3(options = {}) {
         ...targetControls(prompt,target,FIRST_LAST_WORKFLOW.targetNode,FIRST_LAST_WORKFLOW.promptNode)
       ],target};
     }
+    if (mode === 'dual_sample') {
+      const dualTarget = dualSampleTargetFor(input);
+      return {mode,referenceType:'dual_sample',workflowId:DUAL_SAMPLE_WORKFLOW.workflowId,endpointPath:DUAL_SAMPLE_WORKFLOW.endpointPath,nodeInfoList:[
+        node(DUAL_SAMPLE_WORKFLOW.imageNode,'image','DRY_RUN_IMAGE_1'),
+        node(DUAL_SAMPLE_WORKFLOW.promptNode,'value',prompt),
+        node(DUAL_SAMPLE_WORKFLOW.durationNode,'value',dualTarget.durationSeconds),
+        node(DUAL_SAMPLE_WORKFLOW.firstPassResolutionNode,'aspect_ratio',DUAL_SAMPLE_WORKFLOW.aspectRatioValue),
+        node(DUAL_SAMPLE_WORKFLOW.secondPassResolutionNode,'aspect_ratio',DUAL_SAMPLE_WORKFLOW.aspectRatioValue)
+      ],target:dualTarget};
+    }
     if (images.length && !audio.length && !videos.length) {
       if (images.length > MAX_IMAGE_REFERENCES) throw taskError('NOMI_H3_IMAGE_REFERENCE_LIMIT', 'H3 最多支持九张项目图片参考');
       const workflow = imageWorkflowCatalog[images.length];
@@ -192,7 +215,7 @@ function createNomiRunningHubH3(options = {}) {
   }
   async function submit(input) {
     const draft = dryRun(input);
-    if (draft.referenceType === 'image' || draft.referenceType === 'first_last') {
+    if (draft.referenceType === 'image' || draft.referenceType === 'first_last' || draft.referenceType === 'dual_sample') {
       const uploadedImages = [];
       for (const image of input.images) uploadedImages.push(await upload(image));
       draft.nodeInfoList.forEach(item => { if (item.fieldName === 'image') item.fieldValue = uploadedImages.shift(); });
@@ -216,7 +239,7 @@ function createNomiRunningHubH3(options = {}) {
     const status = urls.length ? 'succeeded' : /FAILED|REJECTED|CANCELLED/.test(text) ? 'failed' : 'running';
     return {status,videoUrls:urls,usage:collectUsage(response)};
   }
-  return {dryRun,submit,query,constants:{TEXT_WORKFLOW_ID,FIRST_LAST_WORKFLOW,MULTIMODAL_WORKFLOW_ID,IMAGE_NODES,AUDIO_NODES,VIDEO_NODES,MAX_IMAGE_REFERENCES,H3_MODES,imageWorkflowCounts:Object.keys(imageWorkflowCatalog).map(Number).sort((a,b) => a - b)}};
+  return {dryRun,submit,query,constants:{TEXT_WORKFLOW_ID,FIRST_LAST_WORKFLOW,DUAL_SAMPLE_WORKFLOW,MULTIMODAL_WORKFLOW_ID,IMAGE_NODES,AUDIO_NODES,VIDEO_NODES,MAX_IMAGE_REFERENCES,H3_MODES,imageWorkflowCounts:Object.keys(imageWorkflowCatalog).map(Number).sort((a,b) => a - b)}};
 }
 
 function collectUsage(value) {
@@ -233,8 +256,13 @@ function verifyConsumerUsage(usage) {
   const coins = Number(usage?.consumeCoins);
   const money = usage?.consumeMoney;
   const moneyValue = money === undefined || money === null || money === '' ? 0 : Number(money);
-  if (!Number.isFinite(coins) || coins <= 0 || !Number.isFinite(moneyValue) || moneyValue !== 0) throw taskError('NOMI_H3_BILLING_UNVERIFIED', 'H3 结算未确认使用消费级币种', 502);
-  return {consumeCoins:coins,consumeMoney:moneyValue};
+  const coinBilled = Number.isFinite(coins) && coins > 0;
+  const moneyBilled = Number.isFinite(moneyValue) && moneyValue > 0;
+  // RunningHub consumer keys can bill either in coins or money. A positive charge
+  // in one official usage field proves consumer billing; never reject a completed task
+  // simply because the other field is null.
+  if (!coinBilled && !moneyBilled) throw taskError('NOMI_H3_BILLING_UNVERIFIED', 'H3 结算未确认使用消费级币种', 502);
+  return {consumeCoins:coinBilled ? coins : null,consumeMoney:moneyBilled ? moneyValue : 0};
 }
 
-module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, requestedMode, collectUsage, verifyConsumerUsage, TEXT_WORKFLOW_ID, FIRST_LAST_WORKFLOW, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES, H3_MODES, DEFAULT_IMAGE_WORKFLOWS};
+module.exports = {createNomiRunningHubH3, readImageWorkflowCatalog, targetFor, dualSampleTargetFor, requestedMode, collectUsage, verifyConsumerUsage, TEXT_WORKFLOW_ID, FIRST_LAST_WORKFLOW, DUAL_SAMPLE_WORKFLOW, MULTIMODAL_WORKFLOW_ID, MAX_IMAGE_REFERENCES, H3_MODES, DEFAULT_IMAGE_WORKFLOWS};

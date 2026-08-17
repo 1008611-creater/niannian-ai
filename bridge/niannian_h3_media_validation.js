@@ -28,7 +28,7 @@ function validateH3MediaMetadata(actual, expected) {
   const expectedWidth = Number(expected?.width);
   const expectedHeight = Number(expected?.height);
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) throw validationError('H3_TARGET_DIMENSION_MISMATCH', '视频未返回有效画幅');
-  if (!Number.isFinite(expectedWidth) || !Number.isFinite(expectedHeight) || expectedWidth <= 0 || expectedHeight <= 0 || width !== expectedWidth || height !== expectedHeight) throw validationError('H3_TARGET_DIMENSION_MISMATCH', '视频实际尺寸与任务设置不一致');
+  if (expected?.exactDimensions !== false && (!Number.isFinite(expectedWidth) || !Number.isFinite(expectedHeight) || expectedWidth <= 0 || expectedHeight <= 0 || width !== expectedWidth || height !== expectedHeight)) throw validationError('H3_TARGET_DIMENSION_MISMATCH', '视频实际尺寸与任务设置不一致');
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) throw validationError('H3_OUTPUT_DURATION_MISMATCH', '视频未返回有效时长');
   if (Math.abs(width / height - ratio(expected?.aspectRatio)) > 0.05) throw validationError('H3_TARGET_DIMENSION_MISMATCH', '视频实际画幅与任务设置不一致');
   if (!Number.isFinite(expectedDuration) || expectedDuration <= 0 || Math.abs(durationSeconds - expectedDuration) > Math.max(1, expectedDuration * 0.15)) throw validationError('H3_OUTPUT_DURATION_MISMATCH', '视频实际时长与任务设置不一致');

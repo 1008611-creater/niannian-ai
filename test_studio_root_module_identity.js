@@ -7,9 +7,9 @@ const path = require('path');
 const projectRoot = __dirname;
 const assetsRoot = path.join(projectRoot, 'studio', 'assets');
 const releaseTag = 'r(?:4|5|6)';
-const moduleCacheVersion = '20260816-studio-closure-r9';
+const moduleCacheVersion = '20260817-h3-dual-sample-r1';
 const studioClosureCacheVersion = '20260816-studio-closure-r9';
-const h3StudioClosureCacheVersion = '20260817-h3-first-last-r2';
+const h3StudioClosureCacheVersion = '20260817-h3-dual-sample-r1';
 const starts = ['index-M-8MrEH2-r28-19b89ec-r6.js', 'web-runtime-adapter-r4.js'];
 
 function localReferences(source) {
