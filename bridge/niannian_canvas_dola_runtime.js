@@ -75,31 +75,37 @@ function createCanvasDolaRuntime(options = {}) {
       if (counts.image > 30 || counts.audio > 10 || counts.video > 10) throw runtimeError('DOLA_INPUT_LIMIT_EXCEEDED', 'Dola 素材数量超出限制', 422);
       return {channel:'dola-seedance-2-5',durationSeconds:30,aspectRatio:job.aspectRatio,accountSlot:job.accountSlot,inputCounts:counts};
     }
-    return adapter.dryRun({prompt:job.prompt,aspectRatio:job.aspectRatio,accountSlot:job.accountSlot}, await ownedInputs(job));
+    return adapter.dryRun({prompt:job.prompt,aspectRatio:job.aspectRatio,accountSlot:job.accountSlot,durationSeconds:job.durationSeconds}, await ownedInputs(job));
   }
 
   async function submitOnce(ownerId, projectId, jobId) {
     if (!enabled) throw runtimeError('CANVAS_PROVIDER_SUBMIT_DISABLED', 'Dola 视频生成尚未启用，当前任务仅完成准备。');
-    try { if (!preflightPage) throw runtimeError('DOLA_PLAYWRIGHT_NOT_CONFIGURED', 'Dola 页面连接尚未配置'); const check = await preflightPage(); if (!check.ready) throw new Error('Dola 页面未就绪'); }
-    catch (error) { throw runtimeError(error.code || 'DOLA_PLAYWRIGHT_NOT_READY', error.message || 'Dola 页面未就绪'); }
+    let preparedPage = null;
+    if (playwrightMode) {
+      try { if (!preflightPage) throw runtimeError('DOLA_PLAYWRIGHT_NOT_CONFIGURED', 'Dola 页面连接尚未配置'); const check = await preflightPage(); if (!check.ready) throw new Error('Dola 页面未就绪'); }
+      catch (error) { throw runtimeError(error.code || 'DOLA_PLAYWRIGHT_NOT_READY', error.message || 'Dola 页面未就绪'); }
+    }
     const job = await jobs.getOwned(ownerId, projectId, jobId);
     if (!job) throw runtimeError('CANVAS_JOB_NOT_FOUND', '任务不存在', 404);
     assertDolaJob(job);
     if (job.providerTaskId) return job;
-    const retryable = !job.providerTaskId && ['failed','review'].includes(job.status);
+    const retryable = job.status === 'failed' && !job.providerTaskId && job.providerSubmitState === 'failed';
     if (job.status !== 'awaiting_authorization' && !retryable) throw runtimeError('CANVAS_JOB_STATE_INVALID', '当前任务不能重复提交', 409);
     const input = await ownedInputs(job);
-    const preparedPage = await preparePage({
-      prompt:withDolaPromptPrefix(job.prompt),
-      aspectRatio:job.aspectRatio,
-      accountSlot:job.accountSlot,
-      assets:input.map(asset => ({kind:asset.kind,path:asset.storedPath,storedPath:asset.storedPath}))
-    });
+    if (playwrightMode) {
+      preparedPage = await preparePage({
+        prompt:withDolaPromptPrefix(job.prompt),
+        aspectRatio:job.aspectRatio,
+        accountSlot:job.accountSlot,
+        durationSeconds:job.durationSeconds,
+        assets:input.map(asset => ({kind:asset.kind,path:asset.storedPath,storedPath:asset.storedPath}))
+      });
+    }
     await jobs.updateOwned(ownerId, projectId, jobId, {status:'queued',providerSubmitState:'submitting',publicError:null});
     try {
-      const submitted = submitPage
-        ? await submitPage({browser:preparedPage.browser,page:preparedPage.page,prompt:withDolaPromptPrefix(job.prompt),aspectRatio:job.aspectRatio,accountSlot:job.accountSlot,idempotencyKey:job.id})
-        : await adapter.submit({prompt:withDolaPromptPrefix(job.prompt),aspectRatio:job.aspectRatio,accountSlot:job.accountSlot,idempotencyKey:job.id}, input);
+      const submitted = playwrightMode
+        ? await submitPage({browser:preparedPage.browser,page:preparedPage.page,prompt:withDolaPromptPrefix(job.prompt),aspectRatio:job.aspectRatio,accountSlot:job.accountSlot,durationSeconds:job.durationSeconds,idempotencyKey:job.id})
+        : await adapter.submit({prompt:withDolaPromptPrefix(job.prompt),aspectRatio:job.aspectRatio,accountSlot:job.accountSlot,durationSeconds:job.durationSeconds,idempotencyKey:job.id}, input);
       const providerTaskId = String(submitted.taskId || submitted.pageUrl || job.id);
       return await jobs.updateOwned(ownerId, projectId, jobId, {status:'queued',providerSubmitState:'accepted',providerTaskId:providerTaskId,providerChannel:submitted.channel || 'dola-seedance-2-5',providerPayload:submitted.payload || {pageUrl:submitted.pageUrl || null},publicError:null});
     } catch (error) {
@@ -121,7 +127,7 @@ function createCanvasDolaRuntime(options = {}) {
   async function reconcile(ownerId, projectId, jobId) {
     const job = await jobs.getOwned(ownerId, projectId, jobId);
     if (!job) throw runtimeError('CANVAS_JOB_NOT_FOUND', '任务不存在', 404);
-    if (job.nodeType !== 'video' || !isDolaVideoChannel(job.videoChannel) || !job.providerTaskId || ['succeeded','failed'].includes(job.status)) return job;
+    if (job.nodeType !== 'video' || !isDolaVideoChannel(job.videoChannel) || !job.providerTaskId || ['succeeded','failed','review'].includes(job.status)) return job;
     try {
       if (playwrightMode) return job;
       const result = await adapter.query(job.providerTaskId);
