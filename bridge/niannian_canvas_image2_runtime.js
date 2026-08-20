@@ -79,7 +79,7 @@ function createCanvasImage2Runtime(options = {}) {
     if (!job) throw runtimeError('CANVAS_JOB_NOT_FOUND', '任务不存在', 404);
     if (job.nodeType !== 'image') throw runtimeError('CANVAS_IMAGE2_NODE_INVALID', '当前任务不是作图任务', 422);
     if (job.providerTaskId) return job;
-    const retryableFailure = job.status === 'failed' && !job.providerTaskId && job.providerSubmitState === 'failed';
+    const retryableFailure = !job.providerTaskId && ['failed','review'].includes(job.status);
     if (job.status !== 'awaiting_authorization' && !retryableFailure) throw runtimeError('CANVAS_JOB_STATE_INVALID', '当前任务不能重复提交', 409);
     const references = await ownedReferences(job);
     const adapter = adapterFor(job);
@@ -102,7 +102,7 @@ function createCanvasImage2Runtime(options = {}) {
   async function reconcile(ownerId, projectId, jobId) {
     const job = await jobs.getOwned(ownerId, projectId, jobId);
     if (!job) throw runtimeError('CANVAS_JOB_NOT_FOUND', '任务不存在', 404);
-    if (job.nodeType !== 'image' || !job.providerTaskId || ['succeeded','failed','review'].includes(job.status)) return job;
+    if (job.nodeType !== 'image' || !job.providerTaskId || ['succeeded','failed'].includes(job.status)) return job;
     try {
       const adapter = adapterFor(job);
       const result = await adapter.query(job.providerTaskId, job.providerPayload);

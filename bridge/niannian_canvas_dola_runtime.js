@@ -86,7 +86,7 @@ function createCanvasDolaRuntime(options = {}) {
     if (!job) throw runtimeError('CANVAS_JOB_NOT_FOUND', '任务不存在', 404);
     assertDolaJob(job);
     if (job.providerTaskId) return job;
-    const retryable = job.status === 'failed' && !job.providerTaskId && job.providerSubmitState === 'failed';
+    const retryable = !job.providerTaskId && ['failed','review'].includes(job.status);
     if (job.status !== 'awaiting_authorization' && !retryable) throw runtimeError('CANVAS_JOB_STATE_INVALID', '当前任务不能重复提交', 409);
     const input = await ownedInputs(job);
     const preparedPage = await preparePage({
@@ -121,7 +121,7 @@ function createCanvasDolaRuntime(options = {}) {
   async function reconcile(ownerId, projectId, jobId) {
     const job = await jobs.getOwned(ownerId, projectId, jobId);
     if (!job) throw runtimeError('CANVAS_JOB_NOT_FOUND', '任务不存在', 404);
-    if (job.nodeType !== 'video' || !isDolaVideoChannel(job.videoChannel) || !job.providerTaskId || ['succeeded','failed','review'].includes(job.status)) return job;
+    if (job.nodeType !== 'video' || !isDolaVideoChannel(job.videoChannel) || !job.providerTaskId || ['succeeded','failed'].includes(job.status)) return job;
     try {
       if (playwrightMode) return job;
       const result = await adapter.query(job.providerTaskId);

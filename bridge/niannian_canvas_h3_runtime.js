@@ -52,7 +52,7 @@ function createCanvasH3Runtime(options = {}) {
     if (!job) throw runtimeError('CANVAS_JOB_NOT_FOUND', '任务不存在', 404);
     if (job.nodeType !== 'video') throw runtimeError('CANVAS_H3_NODE_INVALID', '当前任务不是视频任务', 422);
     if (job.providerTaskId) return job;
-    const retryableFailure = job.status === 'failed' && !job.providerTaskId && job.providerSubmitState === 'failed';
+    const retryableFailure = !job.providerTaskId && ['failed','review'].includes(job.status);
     if (job.status !== 'awaiting_authorization' && !retryableFailure) throw runtimeError('CANVAS_JOB_STATE_INVALID', '当前任务不能重复提交', 409);
     const references = await ownedReferences(job);
     await jobs.updateOwned(ownerId, projectId, jobId, {status:'queued',providerSubmitState:'submitting',publicError:null});
@@ -81,7 +81,7 @@ function createCanvasH3Runtime(options = {}) {
   async function reconcile(ownerId, projectId, jobId) {
     const job = await jobs.getOwned(ownerId, projectId, jobId);
     if (!job) throw runtimeError('CANVAS_JOB_NOT_FOUND', '任务不存在', 404);
-    if (job.nodeType !== 'video' || !job.providerTaskId || ['succeeded','failed','review'].includes(job.status)) return job;
+    if (job.nodeType !== 'video' || !job.providerTaskId || ['succeeded','failed'].includes(job.status)) return job;
     try {
       const result = await adapter.query(job.providerTaskId);
       if (result.status === 'generating') return await jobs.updateOwned(ownerId, projectId, jobId, {status:'running',providerSubmitState:'running',publicError:null});

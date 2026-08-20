@@ -8368,8 +8368,8 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
     if (jobId && !action && request.method === 'GET') {
       let job = await canvasGenerationJobService.getOwned(user.id, projectId, jobId);
       if (!job) return json(response, 404, {code:'CANVAS_JOB_NOT_FOUND',error:'任务不存在'});
-      if (job.nodeType === 'image' && canvasImage2Runtime.enabled && ['queued','running'].includes(job.status)) job = await canvasImage2Runtime.reconcile(user.id, projectId, jobId);
-      if (job.nodeType === 'video' && ['queued','running'].includes(job.status)) {
+      if (job.nodeType === 'image' && canvasImage2Runtime.enabled && ['queued','running','review'].includes(job.status)) job = await canvasImage2Runtime.reconcile(user.id, projectId, jobId);
+      if (job.nodeType === 'video' && ['queued','running','review'].includes(job.status)) {
         if (canvasVideoChannels.isDolaVideoChannel(job.videoChannel) && canvasDolaRuntime.enabled) job = await canvasDolaRuntime.reconcile(user.id, projectId, jobId);
         else if (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) && canvasAnimateRuntime.enabled) job = await canvasAnimateRuntime.reconcile(user.id, projectId, jobId);
         else if (canvasH3Runtime.enabled) job = await canvasH3Runtime.reconcile(user.id, projectId, jobId);

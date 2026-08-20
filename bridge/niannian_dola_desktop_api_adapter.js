@@ -3,6 +3,31 @@
 const fs = require('fs/promises');
 const path = require('path');
 
+let sharp = null;
+try { sharp = require('sharp'); } catch { sharp = null; }
+
+// Dola 视频参考图不需要 4K 无损原图。超过阈值的图片先压缩到最长边 2048
+// 的 JPEG，避免 multipart 请求体超过 Dola 连接器的 413 限制。
+const DOLA_IMAGE_BYTES_LIMIT = 1024 * 1024; // 1MB 以上图片压缩
+const DOLA_IMAGE_MAX_EDGE = 2048;
+const DOLA_IMAGE_JPEG_QUALITY = 85;
+const DOLA_INPUT_BYTES_LIMIT = 5 * 1024 * 1024; // 压缩后仍超 5MB 则友好拒绝（线上 7.19MB 已触发 413）
+
+async function compressImageForDola(bytes, format) {
+  const ext = String(format || '').toLowerCase();
+  if (!sharp || !['png', 'jpeg', 'jpg', 'webp'].includes(ext)) return {bytes, mimeType: null};
+  try {
+    const result = await sharp(bytes)
+      .rotate()
+      .resize({width: DOLA_IMAGE_MAX_EDGE, height: DOLA_IMAGE_MAX_EDGE, fit: 'inside', withoutEnlargement: true})
+      .jpeg({quality: DOLA_IMAGE_JPEG_QUALITY})
+      .toBuffer({resolveWithObject: true});
+    return {bytes: result.data, mimeType: 'image/jpeg'};
+  } catch {
+    return {bytes, mimeType: null};
+  }
+}
+
 const INPUT_FIELD = Object.freeze({
   reference_image: 'image',
   generated_image: 'image',
@@ -106,8 +131,18 @@ function createDolaDesktopApiAdapter(options = {}) {
       let bytes;
       try { bytes = await fs.readFile(asset.storedPath); }
       catch { throw adapterError('DOLA_INPUT_READ_FAILED', '无法读取画布中的 Dola 素材', 422); }
+      let mimeType = asset.mimeType || 'application/octet-stream';
+      const isImage = ['reference_image', 'generated_image'].includes(asset.kind);
+      if (isImage && bytes.length > DOLA_IMAGE_BYTES_LIMIT) {
+        const compressed = await compressImageForDola(bytes, asset.format || path.extname(String(asset.originalName || asset.storedPath || '')).replace('.', ''));
+        if (compressed.mimeType) {
+          bytes = compressed.bytes;
+          mimeType = compressed.mimeType;
+        }
+      }
+      if (bytes.length > DOLA_INPUT_BYTES_LIMIT) throw adapterError('DOLA_INPUT_TOO_LARGE', '参考素材过大，Dola 单素材上限约 8MB，请压缩或换用小尺寸素材后重试。', 422);
       const name = path.basename(String(asset.originalName || asset.storedPath || 'asset'));
-      form.append(field, new Blob([bytes], {type:asset.mimeType || 'application/octet-stream'}), name);
+      form.append(field, new Blob([bytes], {type: mimeType}), name);
     }
     const body = await request(baseUrl + '/v1/jobs', {
       method: 'POST', headers: headers({'X-Generation-Authorization':'submit','Idempotency-Key':String(task.idempotencyKey || '')}), body: form
