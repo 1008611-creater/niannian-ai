@@ -56,17 +56,20 @@ async function run() {
       },
       download: async () => ({bytes:Buffer.concat([Buffer.from('ftyp'),Buffer.alloc(2048, 4)]),mime:'video/mp4',format:'mp4'})
     };
+    let pageSubmitted = null;
     const runtime = createCanvasDolaRuntime({jobService:jobs,assetService:assets,enabled:true,adapter,inspectMedia:async (bytes, expected) => {
       assert.equal(expected.durationSeconds, 30);
       assert.equal(expected.aspectRatio, '9:16');
       return {width:720,height:1280,durationSeconds:30.08,codec:'h264'};
-    }, preflightPage:async () => ({ready:true}), preparePage:async options => ({browser:null,page:null,prepared:true,options}), submitPage:async options => ({taskId:'dola-task-001',channel:'dola-seedance-2-5',payload:{durationSeconds:30}})});
+    }, preflightPage:async () => ({ready:true}), preparePage:async options => ({browser:null,page:null,prepared:true,options}), submitPage:async options => { pageSubmitted = options; return {taskId:'dola-task-001',channel:'dola-seedance-2-5',payload:{durationSeconds:30}}; }});
     const dryRun = await runtime.dryRun(prepared.job);
     assert.equal(dryRun.durationSeconds, 30);
     const queued = await runtime.submit('USR-DOLA','NN-DOLA',prepared.job.id);
     assert.equal(queued.providerTaskId, 'dola-task-001');
-    assert.ok(submitted);
-    assert.equal(submitted.task.idempotencyKey, prepared.job.id);
+    // submitPage (playwright path) is the submission entry used here, not adapter.submit.
+    assert.ok(pageSubmitted);
+    assert.equal(pageSubmitted.idempotencyKey, prepared.job.id);
+    assert.equal(pageSubmitted.prompt.startsWith('【强制约束】'), true);
     assert.equal((await runtime.reconcile('USR-DOLA','NN-DOLA',prepared.job.id)).status, 'running');
     const completed = await runtime.reconcile('USR-DOLA','NN-DOLA',prepared.job.id);
     assert.equal(completed.status, 'succeeded');
