@@ -7,8 +7,11 @@ const vm = require('vm');
 (async () => {
 const source = fs.readFileSync(require('path').join(__dirname, 'studio/assets/web-runtime-adapter-r4.js'), 'utf8');
 const studioIndex = fs.readFileSync(require('path').join(__dirname, 'studio/index.html'), 'utf8');
-assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260819-dola-persistence-r3/);
-assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260819-dola-persistence-r3/);
+assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260820-model-catalog-auth-r1/);
+assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260820-model-catalog-auth-r1/);
+assert.match(source, /isTransientEmptyCatalog/);
+assert.match(source, /nomi-session-changed/);
+assert.match(source, /nomi-auth-changed/);
 assert.match(source, /\/api\/canvas\/provider-status/);
 assert.match(source, /\/api\/projects\/.*\/canvas\/jobs/);
 assert.match(source, /\/api\/projects\/.*\/text\/jobs/);
