@@ -8399,15 +8399,13 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
       let job = await canvasGenerationJobService.getOwned(user.id, projectId, jobId);
       if (!job) return json(response, 404, {code:'CANVAS_JOB_NOT_FOUND',error:'任务不存在'});
       if (body.confirmProviderSpend !== true) return json(response, 422, {code:'CANVAS_PROVIDER_AUTHORIZATION_REQUIRED',error:'请明确确认本次生成会调用已配置的图像渠道'});
-      // A failed Image2 submission with no provider task was refunded and can be
-      // safely retried through the same canvas node. Never resubmit a task that
-      // reached a provider, is still active, or remains under manual review.
-      const retryableImageFailure = job.nodeType === 'image'
-        && job.status === 'failed'
-        && job.providerSubmitState === 'failed'
-        && !job.providerTaskId
+      // A failed or network-uncertain submission with no provider task was
+      // refunded and can be safely retried through the same canvas node.
+      // Never resubmit a task that reached a provider or is still active.
+      const retryableFailure = !job.providerTaskId
+        && ['failed','review'].includes(job.status)
         && job.creditState === 'refunded';
-      if (job.status !== 'awaiting_authorization' && !retryableImageFailure) {
+      if (job.status !== 'awaiting_authorization' && !retryableFailure) {
         return json(response, 409, {code:'CANVAS_JOB_ALREADY_AUTHORIZED',error:'该生成任务已进入服务端处理或已结束，请创建新的重试任务。',job:canvasGenerationJobService.publicJob(job, {providerSubmitEnabled:canvasGenerationSubmitEnabled(job)})});
       }
       if (job.nodeType === 'image' && !canvasGenerationSubmitEnabled(job)) return json(response, 409, {code:'CANVAS_PROVIDER_SUBMIT_DISABLED',error:'所选图像渠道尚未启用，当前任务仅完成准备'});
