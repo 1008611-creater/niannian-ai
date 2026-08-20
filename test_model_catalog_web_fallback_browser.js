@@ -18,8 +18,13 @@ async function waitForHealth(baseUrl) {
 
 async function main() {
   const studioIndex = require('node:fs').readFileSync(root + '/studio/index.html', 'utf8');
-  assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260819-dola-persistence-r3/);
-  assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260819-dola-persistence-r3/);
+  assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260820-model-catalog-auth-r1/);
+  assert.match(studioIndex, /web-runtime-adapter-r4\.js\?v=20260820-model-catalog-auth-r1/);
+  const adapter = require('node:fs').readFileSync(root + '/studio/assets/web-runtime-adapter-r4.js', 'utf8');
+  assert.match(adapter, /isTransientEmptyCatalog/);
+  assert.match(adapter, /niannian\.canvas_model_catalog\.v1/);
+  assert.match(adapter, /nomi-session-changed/);
+  assert.match(adapter, /nomi-auth-changed/);
   assert.doesNotMatch(studioIndex, /<script type="module" crossorigin src="\.\/assets\/index-M-8MrEH2-r28-19b89ec-r6\.js/);
   const generationController = require('node:fs').readFileSync(root + '/studio/assets/generationRunController-DH5v5RRt-r4.js', 'utf8');
   assert.match(generationController, /window\.nomiDesktop\?\.modelCatalog\?\.listVendors/);

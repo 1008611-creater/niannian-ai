@@ -351,6 +351,25 @@
   }
 
   var catalogRefreshPromise = null;
+  var catalogTransientRetryTimer = null;
+
+  // Anonymous bootstrap intentionally returns an empty v1 catalog. Keep a
+  // previously loaded tenant catalog until session restoration completes.
+  function isTransientEmptyCatalog(status) {
+    return Boolean(status
+      && status.modelCatalog
+      && Array.isArray(status.modelCatalog.models)
+      && status.modelCatalog.models.length === 0
+      && String(status.modelCatalog.schemaVersion || '') === 'niannian.canvas_model_catalog.v1');
+  }
+
+  function scheduleTransientCatalogRetry() {
+    if (catalogTransientRetryTimer !== null) return;
+    catalogTransientRetryTimer = setTimeout(function () {
+      catalogTransientRetryTimer = null;
+      if (catalogState.models.length === 0) refreshCatalog().catch(function () {});
+    }, 1500);
+  }
 
   function waitForCatalogRetry(delay) {
     return new Promise(function (resolve) { setTimeout(resolve, delay); });
@@ -362,8 +381,14 @@
       var lastError = null;
       for (var attempt = 0; attempt < 3; attempt += 1) {
         try {
-          var next = catalogForStatus(await providerStatus());
+          var status = await providerStatus();
+          var transientEmpty = isTransientEmptyCatalog(status);
+          var next = catalogForStatus(status);
           if (next.models.length > 0 || attempt === 2) {
+            if (transientEmpty) {
+              scheduleTransientCatalogRetry();
+              return catalogState;
+            }
             catalogState = next;
             if (typeof window.dispatchEvent === 'function') {
               window.dispatchEvent(new CustomEvent('nomi-model-catalog-changed'));
@@ -371,6 +396,7 @@
             }
             return next;
           }
+          if (transientEmpty) scheduleTransientCatalogRetry();
         } catch (error) {
           lastError = error;
           if (attempt === 2) throw error;
@@ -1129,6 +1155,9 @@
   if (typeof window.addEventListener === 'function') {
     var refreshOnActivation = function () { refreshCatalog().catch(function () {}); };
     window.addEventListener('focus', refreshOnActivation);
+    window.addEventListener('pageshow', refreshOnActivation);
+    window.addEventListener('nomi-session-changed', refreshOnActivation);
+    window.addEventListener('nomi-auth-changed', refreshOnActivation);
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible') refreshOnActivation();
