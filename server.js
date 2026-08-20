@@ -8423,7 +8423,11 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
       if (!catalogModel) return json(response, 409, {code:'CANVAS_MODEL_NOT_ENABLED',error:'当前模型尚未由管理员启用'});
       const billingMode = job.nodeType === 'image' && job.inputAssetIds?.length ? 'reference-image-edit' : 'text-to-image';
       const billingAmount = Number(catalogModel.priceCreditsByMode?.[billingMode] ?? catalogModel.priceCredits ?? 0);
-      const reservation = await modelControlPlane.reserveCredits({tenantId:modelControlPlaneModule.tenantForUser(user),userId:user.id,jobId:job.id,idempotencyKey:job.id + ':reserve',amount:billingAmount});
+      // Retried jobs must reserve under a fresh idempotency key. Reusing
+      // `job.id + ':reserve'` returns the old finalized reservation, which then
+      // fails settlement with CREDIT_RESERVATION_FINALIZED.
+      const reservationIdempotencyKey = retryableFailure ? `${job.id}:reserve:${Date.now()}` : `${job.id}:reserve`;
+      const reservation = await modelControlPlane.reserveCredits({tenantId:modelControlPlaneModule.tenantForUser(user),userId:user.id,jobId:job.id,idempotencyKey:reservationIdempotencyKey,amount:billingAmount});
       try {
         job = await canvasGenerationJobService.updateOwned(user.id, projectId, jobId, {tenantId:modelControlPlaneModule.tenantForUser(user),creditReservationId:reservation.reservationId,creditAmount:billingAmount,creditState:'reserved'});
       } catch (error) {
