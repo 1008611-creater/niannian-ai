@@ -29,14 +29,32 @@ export async function applyRelayFirstFrame(references: ResolvedGenerationReferen
   const projectId = getActiveWorkbenchProjectId()
   if (!projectId) throw new Error('视频接力失败：找不到当前项目（请先保存项目后重试）')
   const extractFrame = getDesktopBridge()?.video?.extractFrame
-  if (!extractFrame) throw new Error('视频接力失败：当前环境不支持抽帧（需桌面端）')
 
   let url = ''
-  try {
-    const result = await extractFrame({ videoUrl: relayVideoUrl, which: 'last', projectId })
-    url = result?.url || ''
-  } catch (error) {
-    throw new Error(`视频接力抽帧失败：${error instanceof Error ? error.message : String(error)}`)
+  if (extractFrame) {
+    // 桌面端：本地 ffmpeg 抽帧 IPC。
+    try {
+      const result = await extractFrame({ videoUrl: relayVideoUrl, which: 'last', projectId })
+      url = result?.url || ''
+    } catch (error) {
+      throw new Error(`视频接力抽帧失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  } else {
+    // Web 端：调服务端抽帧 API（/api/canvas/video/extract-frame）。不再「需桌面端」。
+    try {
+      const response = await fetch('/api/canvas/video/extract-frame', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoUrl: relayVideoUrl, which: 'last' }),
+      })
+      let body: { url?: string; error?: string } = {}
+      try { body = await response.json() as { url?: string; error?: string } } catch { /* handled below */ }
+      if (!response.ok || !body.url) throw new Error(body.error || `服务端抽帧失败（HTTP ${response.status}）`)
+      url = body.url
+    } catch (error) {
+      throw new Error(`视频接力抽帧失败：${error instanceof Error ? error.message : String(error)}`)
+    }
   }
   // ③ 拿不到 → 抛错，不冒充。
   if (!url) throw new Error('视频接力失败：未能从源视频取到尾帧')

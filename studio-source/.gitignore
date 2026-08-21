@@ -2,6 +2,7 @@
 node_modules/
 dist/
 dist-probe/
+dist-canvas/
 dist-electron/
 *.log
 *.tar.gz
