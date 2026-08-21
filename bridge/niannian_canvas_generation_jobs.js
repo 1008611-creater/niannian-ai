@@ -21,6 +21,18 @@ const MODELS = Object.freeze({
     label: 'H3 生视频',
     provider: 'runninghub',
     providerSubmitEnabled: false
+  }),
+  audio: Object.freeze({
+    id: 'minimax-t2a',
+    label: 'MiniMax 语音',
+    provider: 'minimax-t2a',
+    providerSubmitEnabled: false
+  }),
+  model3d: Object.freeze({
+    id: 'hunyuan3d',
+    label: '混元 3D 生成',
+    provider: 'hunyuan3d',
+    providerSubmitEnabled: false
   })
 });
 

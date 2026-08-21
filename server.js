@@ -53,6 +53,8 @@ const canvasImage2Channels = require('./bridge/niannian_canvas_image2_channels')
 const canvasH3RuntimeModule = require('./bridge/niannian_canvas_h3_runtime');
 const canvasAnimateRuntimeModule = require('./bridge/niannian_canvas_animate_runtime');
 const canvasDolaRuntimeModule = require('./bridge/niannian_canvas_dola_runtime');
+const canvasAudioRuntimeModule = require('./bridge/niannian_canvas_audio_runtime');
+const canvasModel3DRuntimeModule = require('./bridge/niannian_canvas_model3d_runtime');
 const canvasVideoChannels = require('./bridge/niannian_canvas_video_channels');
 const canvasProviderConfig = require('./bridge/niannian_canvas_provider_config');
 const modelControlPlaneModule = require('./bridge/niannian_model_control_plane');
@@ -183,6 +185,18 @@ const canvasDolaRuntime = canvasDolaRuntimeModule.createCanvasDolaRuntime({
   enabled:canvasProviderStatus.dolaSubmitEnabled,
   playwrightMode:canvasProviderStatus.dolaPlaywrightConfigured === true,
   dola:{baseUrl:canvasProviderStatus.dolaApiUrl,apiKey:process.env.NIANNIAN_DOLA_API_KEY}
+});
+const canvasAudioRuntime = canvasAudioRuntimeModule.createCanvasAudioRuntime({
+  jobService:canvasGenerationJobService,
+  assetService:canvasAssetService,
+  enabled:canvasProviderStatus.audioSubmitEnabled,
+  minimax:{apiKey:process.env.MINIMAX_T2A_API_KEY,groupId:process.env.MINIMAX_T2A_GROUP_ID}
+});
+const canvasModel3DRuntime = canvasModel3DRuntimeModule.createCanvasModel3DRuntime({
+  jobService:canvasGenerationJobService,
+  assetService:canvasAssetService,
+  enabled:canvasProviderStatus.model3dSubmitEnabled,
+  hunyuan3d:{apiKey:process.env.HUNYUAN3D_API_KEY}
 });
 const canvasTextRuntime = canvasTextRuntimeModule.createCanvasTextRuntime();
 const canvasTextJobService = canvasTextJobs.createCanvasTextJobService({filePath:canvasTextJobsPath});
@@ -8148,6 +8162,8 @@ function canvasGenerationSubmitEnabled(jobOrNodeType) {
       ? canvasAnimateRuntime.enabled
       : canvasH3Runtime.enabled;
   }
+  if (nodeType === 'audio') return canvasAudioRuntime.enabled;
+  if (nodeType === 'model3d') return canvasModel3DRuntime.enabled;
   const imageChannel = typeof jobOrNodeType === 'object' ? jobOrNodeType.imageChannel : null;
   return imageChannel
     ? canvasProviderStatus.imageChannelEnabled[imageChannel] === true
@@ -8374,6 +8390,7 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
         else if (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) && canvasAnimateRuntime.enabled) job = await canvasAnimateRuntime.reconcile(user.id, projectId, jobId);
         else if (canvasH3Runtime.enabled) job = await canvasH3Runtime.reconcile(user.id, projectId, jobId);
       }
+      if (job.nodeType === 'model3d' && canvasModel3DRuntime.enabled && ['queued','running','review'].includes(job.status)) job = await canvasModel3DRuntime.reconcile(user.id, projectId, jobId);
       return json(response, 200, await publicCanvasGenerationResponse(job, user));
     }
     if (jobId && action === 'dry-run' && request.method === 'POST') {
@@ -8382,9 +8399,13 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
       const providerSubmitEnabled = canvasGenerationSubmitEnabled(job);
       const providerDryRun = job.nodeType === 'image' && canvasImage2Runtime.enabled
         ? await canvasImage2Runtime.dryRun(job)
-        : (canvasVideoChannels.isDolaVideoChannel(job.videoChannel) && canvasDolaRuntime.enabled
-          ? await canvasDolaRuntime.dryRun(job)
-          : (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) ? await canvasAnimateRuntime.dryRun(job) : null));
+        : (job.nodeType === 'audio' && canvasAudioRuntime.enabled
+          ? await canvasAudioRuntime.dryRun(job)
+          : (job.nodeType === 'model3d' && canvasModel3DRuntime.enabled
+            ? await canvasModel3DRuntime.dryRun(job)
+            : (canvasVideoChannels.isDolaVideoChannel(job.videoChannel) && canvasDolaRuntime.enabled
+              ? await canvasDolaRuntime.dryRun(job)
+              : (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) ? await canvasAnimateRuntime.dryRun(job) : null))));
       return json(response, 200, {
         code:'CANVAS_GENERATION_DRY_RUN_READY',
         job:canvasGenerationJobService.publicJob(job, {providerSubmitEnabled}),
@@ -8409,6 +8430,8 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
         return json(response, 409, {code:'CANVAS_JOB_ALREADY_AUTHORIZED',error:'该生成任务已进入服务端处理或已结束，请创建新的重试任务。',job:canvasGenerationJobService.publicJob(job, {providerSubmitEnabled:canvasGenerationSubmitEnabled(job)})});
       }
       if (job.nodeType === 'image' && !canvasGenerationSubmitEnabled(job)) return json(response, 409, {code:'CANVAS_PROVIDER_SUBMIT_DISABLED',error:'所选图像渠道尚未启用，当前任务仅完成准备'});
+      if (job.nodeType === 'audio' && !canvasAudioRuntime.enabled) return json(response, 409, {code:'CANVAS_PROVIDER_SUBMIT_DISABLED',error:'语音生成尚未启用，当前任务仅完成准备'});
+      if (job.nodeType === 'model3d' && !canvasModel3DRuntime.enabled) return json(response, 409, {code:'CANVAS_PROVIDER_SUBMIT_DISABLED',error:'3D 模型生成尚未启用，当前任务仅完成准备'});
       if (job.nodeType === 'video') {
         const selectedRuntime = canvasVideoChannels.isDolaVideoChannel(job.videoChannel)
           ? canvasDolaRuntime
@@ -8449,6 +8472,18 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
         catch (error) { await modelControlPlane.refundCredits({reservationId:reservation.reservationId,reason:'provider_submit_failed',idempotencyKey:job.id + ':refund'}); await canvasGenerationJobService.updateOwned(user.id, projectId, jobId, {creditState:'refunded'}); throw error; }
         return json(response, 202, {code:'CANVAS_GENERATION_SUBMITTED',job:canvasGenerationJobService.publicJob(submitted, {providerSubmitEnabled:true}),providerSubmitEnabled:true,providerStatus:await browserCanvasProviderStatus(user),spendRequested:true});
       }
+      if (job.nodeType === 'audio') {
+        let submitted;
+        try { submitted = await canvasAudioRuntime.submit(user.id, projectId, jobId); }
+        catch (error) { await modelControlPlane.refundCredits({reservationId:reservation.reservationId,reason:'provider_submit_failed',idempotencyKey:job.id + ':refund'}); await canvasGenerationJobService.updateOwned(user.id, projectId, jobId, {creditState:'refunded'}); throw error; }
+        return json(response, 202, {code:'CANVAS_GENERATION_SUBMITTED',job:canvasGenerationJobService.publicJob(submitted, {providerSubmitEnabled:true}),providerSubmitEnabled:true,providerStatus:await browserCanvasProviderStatus(user),spendRequested:true});
+      }
+      if (job.nodeType === 'model3d') {
+        let submitted;
+        try { submitted = await canvasModel3DRuntime.submit(user.id, projectId, jobId); }
+        catch (error) { await modelControlPlane.refundCredits({reservationId:reservation.reservationId,reason:'provider_submit_failed',idempotencyKey:job.id + ':refund'}); await canvasGenerationJobService.updateOwned(user.id, projectId, jobId, {creditState:'refunded'}); throw error; }
+        return json(response, 202, {code:'CANVAS_GENERATION_SUBMITTED',job:canvasGenerationJobService.publicJob(submitted, {providerSubmitEnabled:true}),providerSubmitEnabled:true,providerStatus:await browserCanvasProviderStatus(user),spendRequested:true});
+      }
       return json(response, 409, {code:'CANVAS_PROVIDER_MODEL_UNAVAILABLE',error:'当前节点尚未接入可提交的服务端执行器'});
     }
     return json(response, 405, {code:'METHOD_NOT_ALLOWED',error:'请求方法不允许'});
@@ -8459,6 +8494,8 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
 
 function isCanvasModelRuntimeReady(model) {
   if (model.kind === 'image') return model.id.startsWith('yunwu-gpt-image-2-c') && canvasImage2Runtime.enabled;
+  if (model.kind === 'audio') return model.id === 'minimax-t2a' && canvasAudioRuntime.enabled;
+  if (model.kind === 'model3d') return model.id === 'hunyuan3d' && canvasModel3DRuntime.enabled;
   if (model.kind !== 'video') return false;
   if (canvasVideoChannels.isDolaVideoChannel(model.id)) return canvasDolaRuntime.enabled;
   if (canvasVideoChannels.isAnimateVideoChannel(model.id)) return canvasAnimateRuntime.enabled;
@@ -8483,7 +8520,9 @@ async function browserCanvasProviderStatus(user) {
     imageSubmitEnabled: enabled.some(item => item.kind === 'image'),
     videoSubmitEnabled: enabled.some(item => item.kind === 'video' && !canvasVideoChannels.isDolaVideoChannel(item.id)),
     animateSubmitEnabled: false,
-    dolaSubmitEnabled: canvasDolaRuntime.enabled && enabled.some(item => item.id === 'dola-seedance-2-5')
+    dolaSubmitEnabled: canvasDolaRuntime.enabled && enabled.some(item => item.id === 'dola-seedance-2-5'),
+    audioSubmitEnabled: canvasAudioRuntime.enabled && enabled.some(item => item.id === 'minimax-t2a'),
+    model3dSubmitEnabled: canvasModel3DRuntime.enabled && enabled.some(item => item.id === 'hunyuan3d')
   };
 }
 

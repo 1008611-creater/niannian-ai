@@ -13,7 +13,12 @@ const FORMATS = Object.freeze({
   m4a: Object.freeze({mimeType:'audio/mp4', extension:'.m4a'}),
   mp4: Object.freeze({mimeType:'video/mp4', extension:'.mp4'}),
   mov: Object.freeze({mimeType:'video/quicktime', extension:'.mov'}),
-  webm: Object.freeze({mimeType:'video/webm', extension:'.webm'})
+  webm: Object.freeze({mimeType:'video/webm', extension:'.webm'}),
+  glb: Object.freeze({mimeType:'model/gltf-binary', extension:'.glb'}),
+  obj: Object.freeze({mimeType:'model/obj', extension:'.obj'}),
+  fbx: Object.freeze({mimeType:'model/fbx', extension:'.fbx'}),
+  stl: Object.freeze({mimeType:'model/stl', extension:'.stl'}),
+  usdz: Object.freeze({mimeType:'model/vnd.usdz+zip', extension:'.usdz'})
 });
 
 const KIND_FORMATS = Object.freeze({
@@ -21,7 +26,9 @@ const KIND_FORMATS = Object.freeze({
   generated_image: Object.freeze(['png','jpeg','webp']),
   reference_audio: Object.freeze(['mp3','wav','ogg','m4a']),
   reference_video: Object.freeze(['mp4','mov','webm']),
-  generated_video: Object.freeze(['mp4','mov','webm'])
+  generated_video: Object.freeze(['mp4','mov','webm']),
+  generated_audio: Object.freeze(['mp3','wav','ogg','m4a']),
+  generated_model3d: Object.freeze(['glb','obj','fbx','stl','usdz'])
 });
 
 function assetError(code, message, httpStatus = 400) {

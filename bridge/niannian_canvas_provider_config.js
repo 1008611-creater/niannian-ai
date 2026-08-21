@@ -41,6 +41,12 @@ function readCanvasProviderConfig(env = process.env) {
   const dolaApiUrlValid = isDolaApiUrl(dolaApiUrl);
   const dolaPlaywrightConfigured = isOn(env.NIANNIAN_DOLA_PLAYWRIGHT) || isConfigured(env.NIANNIAN_DOLA_CDP_ENDPOINT);
   const dolaSubmitEnabled = isOn(env.NIANNIAN_CANVAS_DOLA_SUBMIT) && (dolaPlaywrightConfigured || (dolaCredentialConfigured && dolaApiUrlValid));
+  // MiniMax T2A (audio node): needs API key + group id + submit switch.
+  const minimaxT2ACredentialConfigured = isConfigured(env.MINIMAX_T2A_API_KEY) && isConfigured(env.MINIMAX_T2A_GROUP_ID);
+  const audioSubmitEnabled = minimaxT2ACredentialConfigured && isOn(env.MINIMAX_T2A_SUBMIT);
+  // Hunyuan 3D (model3d node): needs API key + submit switch.
+  const hunyuan3DCredentialConfigured = isConfigured(env.HUNYUAN3D_API_KEY);
+  const model3dSubmitEnabled = hunyuan3DCredentialConfigured && isOn(env.HUNYUAN3D_SUBMIT);
   return Object.freeze({
     provider,
     baseUrl,
@@ -60,7 +66,11 @@ function readCanvasProviderConfig(env = process.env) {
     dolaApiUrlValid,
     dolaCredentialConfigured,
     dolaPlaywrightConfigured,
-    dolaSubmitEnabled
+    dolaSubmitEnabled,
+    minimaxT2ACredentialConfigured,
+    audioSubmitEnabled,
+    hunyuan3DCredentialConfigured,
+    model3dSubmitEnabled
   });
 }
 
@@ -74,7 +84,9 @@ function publicCanvasProviderStatus(env = process.env) {
     imageChannels: config.imageChannels,
     videoSubmitEnabled: config.videoSubmitEnabled,
     animateSubmitEnabled: config.animateSubmitEnabled,
-    dolaSubmitEnabled: config.dolaSubmitEnabled
+    dolaSubmitEnabled: config.dolaSubmitEnabled,
+    audioSubmitEnabled: config.audioSubmitEnabled,
+    model3dSubmitEnabled: config.model3dSubmitEnabled
   };
 }
 
@@ -152,6 +164,28 @@ function publicCanvasModelCatalog(env = process.env) {
             {key: 'aspect_ratio', label: '比例', binding: 'size', optionSource: 'sizeOptions'},
             {key: 'resolution', label: '清晰度', binding: 'resolution', optionSource: 'resolutionOptions'}
           ]
+        }
+      },
+      {
+        id: 'minimax-t2a',
+        label: 'MiniMax 语音',
+        kind: 'audio',
+        providerLabel: 'MiniMax',
+        enabled: config.audioSubmitEnabled === true,
+        priceCredits: 2,
+        audioOptions: {
+          controls: []
+        }
+      },
+      {
+        id: 'hunyuan3d',
+        label: '混元 3D 生成',
+        kind: 'model3d',
+        providerLabel: '混元',
+        enabled: config.model3dSubmitEnabled === true,
+        priceCredits: 10,
+        model3dOptions: {
+          controls: []
         }
       }
     ]
