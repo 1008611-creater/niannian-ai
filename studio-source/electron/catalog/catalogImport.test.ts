@@ -12,8 +12,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CURRENT_CATALOG_VERSION } from "./types";
 
 let mockedUserDataRoot = "";
+let safeStorageAvailable = true;
 const tempRoots: string[] = [];
 
 vi.mock("electron", () => ({
@@ -22,7 +24,7 @@ vi.mock("electron", () => ({
     getAppPath: () => process.cwd(),
   },
   safeStorage: {
-    isEncryptionAvailable: () => false,
+    isEncryptionAvailable: () => safeStorageAvailable,
     encryptString: (s: string) => Buffer.from(s),
     decryptString: (b: Buffer) => b.toString(),
   },
@@ -34,7 +36,7 @@ function makeTempDir(prefix: string): string {
   return dir;
 }
 
-const CURRENT = 3;
+const CURRENT = CURRENT_CATALOG_VERSION;
 
 function writeRawCatalog(value: unknown): void {
   fs.writeFileSync(path.join(mockedUserDataRoot, "model-catalog.json"), JSON.stringify(value), "utf8");
@@ -56,6 +58,7 @@ function vendorBundle(over: Record<string, unknown> = {}): Record<string, unknow
 
 beforeEach(() => {
   mockedUserDataRoot = makeTempDir("nomi-catalog-import-");
+  safeStorageAvailable = true;
   vi.resetModules();
 });
 
@@ -107,6 +110,21 @@ describe("importModelCatalogPackage — 事务边界（全成功才写，任一�
     // 关键：磁盘没留下任何半成品——第一个合法的 acme 也不在（整体回滚）。
     expect(listModelCatalogVendors()).toEqual([]);
     expect(listModelCatalogModels()).toEqual([]);
+  });
+
+  it("safeStorage 不可用且导入包含 API Key → 整体不写", async () => {
+    emptyCatalog();
+    safeStorageAvailable = false;
+    vi.resetModules();
+    const { importModelCatalogPackage, listModelCatalogVendors } = await import("./catalogStore");
+    const res = importModelCatalogPackage({ vendors: [vendorBundle()] }) as {
+      imported: { vendors: number; models: number; mappings: number };
+      errors: string[];
+    };
+
+    expect(res.imported).toEqual({ vendors: 0, models: 0, mappings: 0 });
+    expect(res.errors).toEqual(["当前系统无法安全保存 API Key，请启用系统凭据存储后重试"]);
+    expect(listModelCatalogVendors()).toEqual([]);
   });
 
   it("第一个 bundle 的 vendor 非法（缺 key）→ 后续合法 bundle 也整体不写", async () => {
