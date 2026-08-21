@@ -117,7 +117,8 @@ function publicCanvasModelCatalog(env = process.env) {
         supportsTextToImage: channel.supportsTextToImage === true,
         supportsImageToImage: channel.supportsImageToImage === true,
         priceCredits: channel.priceCredits,
-        priceCreditsByMode: channel.priceCreditsByMode || {}
+        priceCreditsByMode: channel.priceCreditsByMode || {},
+        meta: {archetypeId: 'gpt-image-2'}
       })),
       {
         id: 'minimax-h3',
@@ -128,7 +129,8 @@ function publicCanvasModelCatalog(env = process.env) {
         resolutions: ['2k'],
         aspectRatios: ['9:16', '16:9', '1:1', '4:3', '3:4'],
         outputSizes: {},
-        priceCredits: 20
+        priceCredits: 20,
+        meta: {archetypeId: 'minimax-h3'}
       },
       {
         id: 'dola-seedance-2-5',
@@ -152,7 +154,8 @@ function publicCanvasModelCatalog(env = process.env) {
             {key: 'aspect_ratio', label: '比例', binding: 'size', optionSource: 'sizeOptions'},
             {key: 'resolution', label: '清晰度', binding: 'resolution', optionSource: 'resolutionOptions'}
           ]
-        }
+        },
+        meta: {archetypeId: 'seedance-2'}
       }
     ]
   };
