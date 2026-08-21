@@ -18,6 +18,7 @@ const SKILLS = Object.freeze({
   'mx-shortdrama-04-character-assets': {version: '1.0.0', kinds: ['character', 'scene', 'reference', 'skill'], inputs: ['accepted_timeline'], outputs: ['reference_asset']},
   'image2-storyboard-video': {version: '1.0.0', kinds: ['image', 'reference', 'skill'], inputs: ['prompt', 'reference_asset'], outputs: ['image_asset']},
   'minimaxh3skill': {version: '1.0.0', kinds: ['video', 'skill'], inputs: ['image_asset', 'prompt'], outputs: ['video_asset']},
+  'doubao-seedance-2-0-fast': {version: '1.0.0', kinds: ['video', 'skill'], inputs: ['prompt'], outputs: ['video_asset']},
   'runninghub-animate-motion-transfer': {version: '1.0.0', kinds: ['video', 'skill'], inputs: ['image_asset', 'motion_video'], outputs: ['video_asset']},
   'mx-shortdrama-production-harness': {version: '1.0.0', kinds: ['director', 'delivery', 'smart_cut', 'skill'], inputs: ['project_assets'], outputs: ['editor_session', 'delivery_asset']},
   'niannian-text-generation': {version: '1.0.0', kinds: ['text', 'note', 'skill'], inputs: ['prompt'], outputs: ['text_result']},
@@ -136,6 +137,7 @@ function inferSkillKey(node, data) {
   const model = text(data.modelKey || data.model || data.videoChannel, 200).toLowerCase();
   if (model.includes('animate')) return 'runninghub-animate-motion-transfer';
   if (model.includes('h3') || model.includes('minimax')) return 'minimaxh3skill';
+  if (model.includes('doubao') || model.includes('seedance-2.0-fast') || model.includes('seedance-2-0-fast')) return 'doubao-seedance-2-0-fast';
   if (node.type === 'image' || node.type === 'reference') return 'image2-storyboard-video';
   if (node.type === 'text' || node.type === 'note') return 'niannian-text-generation';
   if (node.type === 'director' || node.type === 'delivery' || node.type === 'smart_cut') return 'mx-shortdrama-production-harness';
