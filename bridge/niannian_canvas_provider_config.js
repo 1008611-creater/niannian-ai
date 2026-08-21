@@ -41,6 +41,9 @@ function readCanvasProviderConfig(env = process.env) {
   const dolaApiUrlValid = isDolaApiUrl(dolaApiUrl);
   const dolaPlaywrightConfigured = isOn(env.NIANNIAN_DOLA_PLAYWRIGHT) || isConfigured(env.NIANNIAN_DOLA_CDP_ENDPOINT);
   const dolaSubmitEnabled = isOn(env.NIANNIAN_CANVAS_DOLA_SUBMIT) && (dolaPlaywrightConfigured || (dolaCredentialConfigured && dolaApiUrlValid));
+  const doubaoApiUrl = String(env.NIANNIAN_DOUBAO_API_URL || '').trim().replace(/\/+$/, '');
+  const doubaoApiUrlValid = isDolaApiUrl(doubaoApiUrl);
+  const doubaoSubmitEnabled = isOn(env.NIANNIAN_CANVAS_DOUBAO_SUBMIT) && doubaoApiUrlValid;
   return Object.freeze({
     provider,
     baseUrl,
@@ -60,7 +63,10 @@ function readCanvasProviderConfig(env = process.env) {
     dolaApiUrlValid,
     dolaCredentialConfigured,
     dolaPlaywrightConfigured,
-    dolaSubmitEnabled
+    dolaSubmitEnabled,
+    doubaoApiUrl,
+    doubaoApiUrlValid,
+    doubaoSubmitEnabled
   });
 }
 
@@ -74,7 +80,8 @@ function publicCanvasProviderStatus(env = process.env) {
     imageChannels: config.imageChannels,
     videoSubmitEnabled: config.videoSubmitEnabled,
     animateSubmitEnabled: config.animateSubmitEnabled,
-    dolaSubmitEnabled: config.dolaSubmitEnabled
+    dolaSubmitEnabled: config.dolaSubmitEnabled,
+    doubaoSubmitEnabled: config.doubaoSubmitEnabled
   };
 }
 
@@ -131,6 +138,17 @@ function publicCanvasModelCatalog(env = process.env) {
         outputSizes: {},
         priceCredits: 20,
         meta: {archetypeId: 'minimax-h3'}
+      },
+      {
+        id: 'doubao-seedance-2-0-fast',
+        label: '豆包 Seedance 2.0 Fast（15秒）',
+        kind: 'video',
+        providerLabel: '豆包',
+        enabled: config.doubaoSubmitEnabled === true,
+        resolutions: ['720p'],
+        aspectRatios: ['9:16', '16:9', '1:1', '4:3', '3:4'],
+        outputSizes: {},
+        priceCredits: 3
       },
       {
         id: 'dola-seedance-2-5',
