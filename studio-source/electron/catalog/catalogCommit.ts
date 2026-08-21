@@ -5,6 +5,7 @@ import { consumedCanonicalKeys } from "./paramTranslate";
 import { nativeWireProfileForArchetype, type NativeWireProfile } from "./nativeWireProfiles";
 import { guessModelKind } from "./modelKindHeuristic";
 import { hardenedFetchText } from "../hardenedFetch";
+import { validateCredentialEndpoint } from "../secureEndpoint";
 import type { AiSdkProviderKind, BillingModelKind, HttpOperation, Model, ProfileKind, Vendor } from "./types";
 import type { TaskRequest } from "../runtime";
 import {
@@ -413,10 +414,10 @@ export function commitManualOpenAiCompatibleModels(payload: {
   // always has a concrete baseUrlHint (the doc-reader + commit path require one).
   const baseUrl =
     providerKind === "anthropic" && !rawBaseUrl ? "https://api.anthropic.com" : rawBaseUrl;
-  if (!/^https?:\/\//i.test(baseUrl)) throw new Error("接入地址需以 http:// 或 https:// 开头");
+  const secureBaseUrl = validateCredentialEndpoint(baseUrl);
   if (!apiKey) throw new Error("API Key 不能为空");
 
-  const vendorKey = deriveVendorKeyFromBaseUrl(baseUrl);
+  const vendorKey = deriveVendorKeyFromBaseUrl(secureBaseUrl);
   if (!vendorKey) throw new Error("无法从接入地址解析出供应商标识");
 
   const vendorName = String(payload?.vendorName || "").trim() || vendorKey;
@@ -465,7 +466,7 @@ export function commitManualOpenAiCompatibleModels(payload: {
       draft: {
         vendorKey,
         vendorName,
-        vendorBaseUrl: baseUrl,
+        vendorBaseUrl: secureBaseUrl,
         vendorAuth: { type: providerKind === "anthropic" ? ("x-api-key" as const) : ("bearer" as const) },
         vendorProviderKind: providerKind,
         ...(vendorMeta ? { vendorMeta } : {}),

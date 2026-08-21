@@ -141,6 +141,19 @@ describe("importModelCatalogPackage — 事务边界（全成功才写，任一�
     expect(listModelCatalogVendors().map((v) => v.key)).toEqual(["preexisting"]);
   });
 
+  it("非对象或 vendors 非数组 → 返回格式错误且不写盘", async () => {
+    emptyCatalog();
+    const { importModelCatalogPackage } = await import("./catalogStore");
+    expect(importModelCatalogPackage(null)).toEqual({
+      imported: { vendors: 0, models: 0, mappings: 0 },
+      errors: ["模型目录导入包格式无效"],
+    });
+    expect(importModelCatalogPackage({ vendors: "bad" })).toEqual({
+      imported: { vendors: 0, models: 0, mappings: 0 },
+      errors: ["模型目录导入包格式无效"],
+    });
+  });
+
   it("空导入（vendors 为空）→ imported 全 0，errors 空，磁盘不被破坏", async () => {
     emptyCatalog();
     const { importModelCatalogPackage } = await import("./catalogStore");

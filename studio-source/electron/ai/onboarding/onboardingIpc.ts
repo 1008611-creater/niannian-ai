@@ -4,6 +4,7 @@ import { describeIllegalHeader, findIllegalHeader, findNonHeaderSafeChar, isJson
 import { guessModelKind } from "../../catalog/modelKindHeuristic";
 import { parseModelListResponse } from "./modelListResponse";
 import { normalizeProviderKind } from "../../catalog/catalogStore";
+import { validateCredentialEndpoint } from "../../secureEndpoint";
 
 // ---------------------------------------------------------------------------
 // Onboarding — 中转拉取式接入 IPC（手填地址+key → 拉模型 → 按 id 分类 → 保存）。
@@ -252,13 +253,18 @@ export function registerOnboardingIpc(): void {
     if (headerProblem) return { ok: false, error: describeIllegalHeader(headerProblem).message };
     // 纯图片/视频上游：不探协议（探了也白探，它们不走 providerKind），只探地址+Key 通不通。
     if (reachabilityOnly) {
-      if (!/^https?:\/\//i.test(rawBaseUrl)) return { ok: false, error: "接入地址需以 http:// 或 https:// 开头" };
+      let validatedBaseUrl: string;
+      try {
+        validatedBaseUrl = validateCredentialEndpoint(rawBaseUrl);
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
       const kind = forcedKind ?? "openai-compatible";
       const headers = buildAuthHeaders(kind, apiKey, extraHeaders);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 12_000);
       try {
-        const listed = await fetchModelList(kind, rawBaseUrl, headers, controller.signal);
+        const listed = await fetchModelList(kind, validatedBaseUrl, headers, controller.signal);
         return listed.ok
           ? { ok: true, reachabilityOnly: true }
           : { ok: false, status: listed.status, error: listed.error };
@@ -284,8 +290,13 @@ export function registerOnboardingIpc(): void {
       candidates = ["openai-compatible"];
     }
     // openai-* 必须有 http(s) 地址；anthropic 可留空（托管默认）。无地址且无 anthropic 候选 → 直接报错。
-    if (!/^https?:\/\//i.test(rawBaseUrl) && !candidates.includes("anthropic")) {
-      return { ok: false, error: "接入地址需以 http:// 或 https:// 开头" };
+    let validatedBaseUrl = rawBaseUrl;
+    if (!candidates.includes("anthropic") || rawBaseUrl) {
+      try {
+        validatedBaseUrl = validateCredentialEndpoint(rawBaseUrl);
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
@@ -293,8 +304,8 @@ export function registerOnboardingIpc(): void {
       let best: (ProtocolProbe & { kind: AiSdkProviderKind }) | null = null;
       for (const kind of candidates) {
         // openai-* 没地址就跳过（避免 fetch 无效 URL）。
-        if (kind !== "anthropic" && !/^https?:\/\//i.test(rawBaseUrl)) continue;
-        const r = await probeOneProtocol(kind, rawBaseUrl, apiKey, modelId, extraHeaders, controller.signal);
+        if (kind !== "anthropic" && !validatedBaseUrl) continue;
+        const r = await probeOneProtocol(kind, validatedBaseUrl, apiKey, modelId, extraHeaders, controller.signal);
         if (r.ok) return { ok: true, status: r.status, detectedKind: kind };
         // 留住「最该报给用户」的错：非 mismatch（鉴权/请求错，可操作）优先于 mismatch（换协议）。
         if (!best || (best.mismatch && !r.mismatch)) best = { ...r, kind };
@@ -316,7 +327,12 @@ export function registerOnboardingIpc(): void {
     const baseUrl =
       providerKind === "anthropic" && !rawBaseUrl ? "https://api.anthropic.com" : rawBaseUrl;
     const apiKey = String(payload?.apiKey || "").trim();
-    if (!/^https?:\/\//i.test(baseUrl)) return { ok: false, error: "接入地址需以 http:// 或 https:// 开头" };
+    let validatedBaseUrl: string;
+    try {
+      validatedBaseUrl = validateCredentialEndpoint(baseUrl);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
     const extraHeaders = readExtraHeaders(payload?.headers);
     const headers = buildAuthHeaders(providerKind, apiKey, extraHeaders);
     // 发送前请求头守卫（同 test-connection）：自带裸 fetch 绕过发送闸，脏 key 先拦+说人话，不发 fetch。
@@ -325,7 +341,7 @@ export function registerOnboardingIpc(): void {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
     try {
-      return await fetchModelList(providerKind, baseUrl, headers, controller.signal);
+      return await fetchModelList(providerKind, validatedBaseUrl, headers, controller.signal);
     } finally {
       clearTimeout(timeout);
     }

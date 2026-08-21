@@ -598,7 +598,7 @@ export function deleteModelCatalogMapping(id: string): void {
 
 export function exportModelCatalogPackage(params?: unknown): unknown {
   const state = readCatalog();
-  const includeApiKeys = Boolean((params as JsonRecord | undefined)?.includeApiKeys);
+  const includeApiKeys = (params as JsonRecord | undefined)?.includeApiKeys === true;
   return {
     version: "desktop-local-v1",
     exportedAt: nowIso(),
@@ -624,6 +624,9 @@ export function exportModelCatalogPackage(params?: unknown): unknown {
  * 这类 bug 整类消失，而不是逐 upsert 补偿。`apply*` 纯函数与单条公开 upsert 共用（无第二份逻辑）。
  */
 export function importModelCatalogPackage(payload: unknown): unknown {
+  if (!isJsonRecord(payload) || (payload.vendors !== undefined && !Array.isArray(payload.vendors))) {
+    return { imported: { vendors: 0, models: 0, mappings: 0 }, errors: ["模型目录导入包格式无效"] };
+  }
   const raw = payload as { vendors?: Array<{ vendor?: unknown; apiKey?: unknown; models?: unknown[]; mappings?: unknown[] }> };
   const state = readCatalog();
   let vendors = 0;

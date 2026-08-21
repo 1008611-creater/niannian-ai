@@ -140,6 +140,15 @@ describe("manual model entry — user journey", () => {
     expect(gpt4o?.labelZh).toBe("Gpt 4o");
   });
 
+  it("rejects public HTTP endpoints before writing credentials", () => {
+    expect(() => commitManualOpenAiCompatibleModels({
+      vendorName: "公网 HTTP",
+      baseUrl: "http://api.example.com/v1",
+      apiKey: "k",
+      models: [{ id: "m1" }],
+    })).toThrow(/公网接入地址必须使用 HTTPS/);
+  });
+
   it("records provenance as manual and writes NO http mapping (text runs via direct AI SDK path)", () => {
     commitManualOpenAiCompatibleModels({
       vendorName: "x",
