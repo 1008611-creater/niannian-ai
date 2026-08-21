@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { pipeline:streamPipeline } = require('stream/promises');
@@ -8260,6 +8261,49 @@ async function settleCanvasGenerationCredits(job, user) {
   return canvasGenerationJobService.updateOwned(user.id, job.projectId, job.id, {creditState:settled ? 'settled' : 'refunded'});
 }
 
+
+/** ffmpeg 抽帧：which='last' 取尾帧，否则取首帧。返回 JPEG 字节。 */
+async function extractCanvasVideoFrame(storedPath, which, timeoutMs = 30000) {
+  const temporary = path.join(os.tmpdir(), 'canvas-frame-' + crypto.randomUUID() + '.jpg');
+  const args = which === 'last'
+    ? ['-v', 'error', '-sseof', '-0.1', '-i', storedPath, '-frames:v', '1', '-q:v', '3', '-y', temporary]
+    : ['-v', 'error', '-ss', '0', '-i', storedPath, '-frames:v', '1', '-q:v', '3', '-y', temporary];
+  try {
+    await runProcess(ffmpegPath, args, timeoutMs);
+    const bytes = await fsp.readFile(temporary);
+    if (!bytes.length) throw new Error('抽帧结果为空');
+    return bytes;
+  } finally {
+    await fsp.rm(temporary, {force: true}).catch(() => {});
+  }
+}
+
+/** Web 端视频→视频接力：从项目素材视频抽帧，注册为图片资产，返回可访问 URL。 */
+async function handleCanvasVideoExtractApi(request, response, pathname, user) {
+  if (request.method !== 'POST' || pathname !== '/api/canvas/video/extract-frame') return false;
+  const body = await readBodyJson(request, 64 * 1024);
+  const videoUrl = String(body?.videoUrl || '').trim();
+  const which = body?.which === 'first' ? 'first' : 'last';
+  const match = /\/api\/projects\/([^/]+)\/canvas\/assets\/([^/]+)\/(?:download|file)(?:\?|$)/.exec(videoUrl);
+  if (!match) return json(response, 422, {code:'CANVAS_EXTRACT_URL_INVALID',error:'只能从项目素材视频抽帧'});
+  const projectId = decodeURIComponent(match[1]);
+  const assetId = match[2];
+  const asset = await canvasAssetService.getOwned(user.id, projectId, assetId);
+  if (!asset) return json(response, 404, {code:'CANVAS_ASSET_NOT_FOUND',error:'素材不存在'});
+  if (!['generated_video', 'reference_video'].includes(asset.kind)) return json(response, 422, {code:'CANVAS_EXTRACT_NOT_VIDEO',error:'目标素材不是视频'});
+  try {
+    const bytes = await extractCanvasVideoFrame(asset.storedPath, which);
+    const stored = await canvasAssetService.registerBuffer({
+      ownerId: user.id, projectId, projectKind: asset.projectKind,
+      kind: 'generated_image', format: 'jpeg', bytes,
+      originalName: 'canvas-' + which + '-frame-' + asset.id.slice(-8) + '.jpg'
+    });
+    return json(response, 200, {code:'CANVAS_EXTRACT_FRAME_READY', url:'/api/projects/' + encodeURIComponent(projectId) + '/canvas/assets/' + stored.asset.id + '/download', assetId:stored.asset.id});
+  } catch (error) {
+    return json(response, 502, {code:'CANVAS_EXTRACT_FAILED', error:'视频抽帧失败：' + String(error?.message || error).slice(0, 160)});
+  }
+}
+
 async function handleCanvasGenerationApi(request, response, pathname, user) {
   const match = pathname.match(/^\/api\/projects\/([^/]+)\/canvas\/jobs(?:\/([^/]+))?(?:\/(dry-run|authorize))?$/);
   if (!match) return false;
@@ -9637,6 +9681,10 @@ async function handleApi(request, response, pathname) {
   }
   if (pathname.match(/^\/api\/projects\/[^/]+\/canvas\/jobs/)) {
     const handled = await handleCanvasGenerationApi(request, response, pathname, user);
+    if (handled) return;
+  }
+  if (pathname === '/api/canvas/video/extract-frame') {
+    const handled = await handleCanvasVideoExtractApi(request, response, pathname, user);
     if (handled) return;
   }
   if (pathname.match(/^\/api\/projects\/[^/]+\/canvas\/skill-nodes\/[^/]+\/compile$/)) {
