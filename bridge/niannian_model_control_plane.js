@@ -92,6 +92,7 @@ function publicCatalog(models, providers, tenantId, allowedModelIds = []) {
       // Video controls are part of the model contract. Omitting them made the
       // canvas fall back to H3's 4-15 second duration list for Dola.
       videoOptions: item.kind === 'video' && item.videoOptions ? JSON.parse(JSON.stringify(item.videoOptions)) : undefined,
+      meta: item.meta ? JSON.parse(JSON.stringify(item.meta)) : undefined,
       outputSizes: Object.entries(item.outputSizesByAspectRatio || {}).reduce((sizes, [resolution, ratios]) => {
         for (const [ratio, size] of Object.entries(ratios || {})) {
           sizes[`${resolution} · ${ratio}`] = size;
