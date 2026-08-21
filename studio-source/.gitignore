@@ -1,0 +1,9 @@
+# Studio 前端源码（Nomi renderer）gitignore
+node_modules/
+dist/
+dist-probe/
+dist-electron/
+*.log
+*.tar.gz
+.DS_Store
+*.local
