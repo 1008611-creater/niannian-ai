@@ -109,6 +109,9 @@ assert.doesNotMatch(source, /\|\| document\.body/);
 assert.ok(source.includes('/canvas/jobs'));
 assert.ok(source.includes('/dry-run'));
 assert.match(source, /idempotency-key/);
-assert.doesNotMatch(source, /confirmProviderSpend/);
+assert.match(source, /data-s2-authorize/);
+assert.match(source, /授权并生成/);
+assert.match(source, /confirmProviderSpend:true/);
+assert.match(source, /canvas\/jobs\/.*\/authorize/);
 
-console.log(JSON.stringify({ok:true,verified:['Studio loads the S1 control surface','S1 ports render persisted source and evidence bindings','revision protection is sent on creation','Step01 uses the source-only server route','the UI cannot submit a paid canvas provider job']}));
+console.log(JSON.stringify({ok:true,verified:['Studio loads the S1 control surface','S1 ports render persisted source and evidence bindings','revision protection is sent on creation','Step01 uses the source-only server route','Image2 requires explicit provider-spend authorization before submitting a paid canvas provider job']}));
