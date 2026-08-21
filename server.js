@@ -54,6 +54,7 @@ const canvasImage2Channels = require('./bridge/niannian_canvas_image2_channels')
 const canvasH3RuntimeModule = require('./bridge/niannian_canvas_h3_runtime');
 const canvasAnimateRuntimeModule = require('./bridge/niannian_canvas_animate_runtime');
 const canvasDolaRuntimeModule = require('./bridge/niannian_canvas_dola_runtime');
+const canvasDoubaoRuntimeModule = require('./bridge/niannian_canvas_doubao_runtime');
 const canvasVideoChannels = require('./bridge/niannian_canvas_video_channels');
 const canvasProviderConfig = require('./bridge/niannian_canvas_provider_config');
 const modelControlPlaneModule = require('./bridge/niannian_model_control_plane');
@@ -184,6 +185,12 @@ const canvasDolaRuntime = canvasDolaRuntimeModule.createCanvasDolaRuntime({
   enabled:canvasProviderStatus.dolaSubmitEnabled,
   playwrightMode:canvasProviderStatus.dolaPlaywrightConfigured === true,
   dola:{baseUrl:canvasProviderStatus.dolaApiUrl,apiKey:process.env.NIANNIAN_DOLA_API_KEY}
+});
+const canvasDoubaoRuntime = canvasDoubaoRuntimeModule.createCanvasDoubaoRuntime({
+  jobService:canvasGenerationJobService,
+  assetService:canvasAssetService,
+  enabled:canvasProviderStatus.doubaoSubmitEnabled,
+  baseUrl:canvasProviderStatus.doubaoApiUrl
 });
 const canvasTextRuntime = canvasTextRuntimeModule.createCanvasTextRuntime();
 const canvasTextJobService = canvasTextJobs.createCanvasTextJobService({filePath:canvasTextJobsPath});
@@ -8145,6 +8152,7 @@ function canvasGenerationSubmitEnabled(jobOrNodeType) {
   const nodeType = typeof jobOrNodeType === 'string' ? jobOrNodeType : jobOrNodeType?.nodeType;
   if (nodeType === 'video') {
     if (typeof jobOrNodeType === 'object' && canvasVideoChannels.isDolaVideoChannel(jobOrNodeType.videoChannel)) return canvasDolaRuntime.enabled;
+    if (typeof jobOrNodeType === 'object' && canvasVideoChannels.isDoubaoVideoChannel(jobOrNodeType.videoChannel)) return canvasDoubaoRuntime.enabled;
     return typeof jobOrNodeType === 'object' && canvasVideoChannels.isAnimateVideoChannel(jobOrNodeType.videoChannel)
       ? canvasAnimateRuntime.enabled
       : canvasH3Runtime.enabled;
@@ -8320,7 +8328,7 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
       const jobs = await canvasGenerationJobService.listOwned(user.id, projectId);
       return json(response, 200, {
         jobs:jobs.map(job => canvasGenerationJobService.publicJob(job, {providerSubmitEnabled:canvasGenerationSubmitEnabled(job)})),
-        providerSubmitEnabled:canvasImage2Runtime.enabled || canvasH3Runtime.enabled || canvasAnimateRuntime.enabled || canvasDolaRuntime.enabled,
+        providerSubmitEnabled:canvasImage2Runtime.enabled || canvasH3Runtime.enabled || canvasAnimateRuntime.enabled || canvasDolaRuntime.enabled || canvasDoubaoRuntime.enabled,
         providerStatus:await browserCanvasProviderStatus(user)
       });
     }
@@ -8403,7 +8411,7 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
           )),
         durationSeconds:(nodeType === 'video' && h3Defaults)
           ? (body.durationSeconds || body.duration_seconds || nodeData.durationSeconds || nodeMeta.durationSeconds || h3Defaults.durationSeconds)
-          : (body.durationSeconds || body.duration_seconds || nodeData.durationSeconds || nodeData.duration_seconds || nodeMeta.durationSeconds || (requestedModel === 'dola-seedance-2-5' ? 30 : (nodeType === 'video' ? 5 : 0))),
+          : (body.durationSeconds || body.duration_seconds || nodeData.durationSeconds || nodeData.duration_seconds || nodeMeta.durationSeconds || (requestedModel === 'dola-seedance-2-5' ? 30 : (requestedModel === 'doubao-seedance-2-0-fast' ? 15 : (nodeType === 'video' ? 5 : 0)))),
         accountSlot:body.accountSlot || body.account_slot || node.data?.accountSlot || node.data?.account_slot || 1,
         idempotencyKey:request.headers['idempotency-key']
       });
@@ -8415,6 +8423,7 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
       if (job.nodeType === 'image' && canvasImage2Runtime.enabled && ['queued','running','review'].includes(job.status)) job = await canvasImage2Runtime.reconcile(user.id, projectId, jobId);
       if (job.nodeType === 'video' && ['queued','running','review'].includes(job.status)) {
         if (canvasVideoChannels.isDolaVideoChannel(job.videoChannel) && canvasDolaRuntime.enabled) job = await canvasDolaRuntime.reconcile(user.id, projectId, jobId);
+        else if (canvasVideoChannels.isDoubaoVideoChannel(job.videoChannel) && canvasDoubaoRuntime.enabled) job = await canvasDoubaoRuntime.reconcile(user.id, projectId, jobId);
         else if (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) && canvasAnimateRuntime.enabled) job = await canvasAnimateRuntime.reconcile(user.id, projectId, jobId);
         else if (canvasH3Runtime.enabled) job = await canvasH3Runtime.reconcile(user.id, projectId, jobId);
       }
@@ -8428,7 +8437,9 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
         ? await canvasImage2Runtime.dryRun(job)
         : (canvasVideoChannels.isDolaVideoChannel(job.videoChannel) && canvasDolaRuntime.enabled
           ? await canvasDolaRuntime.dryRun(job)
-          : (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) ? await canvasAnimateRuntime.dryRun(job) : null));
+          : (canvasVideoChannels.isDoubaoVideoChannel(job.videoChannel) && canvasDoubaoRuntime.enabled
+            ? await canvasDoubaoRuntime.dryRun(job)
+            : (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) ? await canvasAnimateRuntime.dryRun(job) : null)));
       return json(response, 200, {
         code:'CANVAS_GENERATION_DRY_RUN_READY',
         job:canvasGenerationJobService.publicJob(job, {providerSubmitEnabled}),
@@ -8456,7 +8467,9 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
       if (job.nodeType === 'video') {
         const selectedRuntime = canvasVideoChannels.isDolaVideoChannel(job.videoChannel)
           ? canvasDolaRuntime
-          : (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) ? canvasAnimateRuntime : canvasH3Runtime);
+          : (canvasVideoChannels.isDoubaoVideoChannel(job.videoChannel)
+            ? canvasDoubaoRuntime
+            : (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) ? canvasAnimateRuntime : canvasH3Runtime));
         if (!selectedRuntime.enabled) return json(response, 409, {code:'CANVAS_PROVIDER_SUBMIT_DISABLED',error:'视频生成尚未启用，当前任务仅完成准备'});
       }
       const catalog = await modelControlPlane.publicCatalogForTenant(modelControlPlaneModule.tenantForUser(user));
@@ -8505,6 +8518,7 @@ function isCanvasModelRuntimeReady(model) {
   if (model.kind === 'image') return model.id.startsWith('yunwu-gpt-image-2-c') && canvasImage2Runtime.enabled;
   if (model.kind !== 'video') return false;
   if (canvasVideoChannels.isDolaVideoChannel(model.id)) return canvasDolaRuntime.enabled;
+  if (canvasVideoChannels.isDoubaoVideoChannel(model.id)) return canvasDoubaoRuntime.enabled;
   if (canvasVideoChannels.isAnimateVideoChannel(model.id)) return canvasAnimateRuntime.enabled;
   return model.id === 'minimax-h3' && canvasH3Runtime.enabled;
 }
@@ -8514,7 +8528,7 @@ async function browserCanvasModelCatalog(user) {
   // Dola is controlled by the administrator model switch. Keep an enabled
   // channel selectable while its local desktop connector reconnects; submit
   // still checks the provider runtime before it can incur a generation.
-  return {...catalog, models:catalog.models.filter(model => canvasVideoChannels.isDolaVideoChannel(model.id) || isCanvasModelRuntimeReady(model))};
+  return {...catalog, models:catalog.models.filter(model => canvasVideoChannels.isDolaVideoChannel(model.id) || canvasVideoChannels.isDoubaoVideoChannel(model.id) || isCanvasModelRuntimeReady(model))};
 }
 
 async function browserCanvasProviderStatus(user) {
@@ -8527,7 +8541,8 @@ async function browserCanvasProviderStatus(user) {
     imageSubmitEnabled: enabled.some(item => item.kind === 'image'),
     videoSubmitEnabled: enabled.some(item => item.kind === 'video' && !canvasVideoChannels.isDolaVideoChannel(item.id)),
     animateSubmitEnabled: false,
-    dolaSubmitEnabled: canvasDolaRuntime.enabled && enabled.some(item => item.id === 'dola-seedance-2-5')
+    dolaSubmitEnabled: canvasDolaRuntime.enabled && enabled.some(item => item.id === 'dola-seedance-2-5'),
+    doubaoSubmitEnabled: canvasDoubaoRuntime.enabled && enabled.some(item => item.id === 'doubao-seedance-2-0-fast')
   };
 }
 
