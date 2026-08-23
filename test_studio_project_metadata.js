@@ -90,9 +90,13 @@ async function run() {
     assert.equal(candidateResponse.status, 201);
     candidateAssets.push(candidate.asset);
   }
+  // 素材上传会推进画布 revision；PUT 前先读取当前 ETag，避免硬编码 nomi-rev-0 造成 409
+  const beforePutResponse = await fetch(`${baseUrl}/api/studio/projects/NN-web-meta-a`, {headers:auth('meta-token-a')});
+  assert.equal(beforePutResponse.status, 200);
+  const currentEtag = beforePutResponse.headers.get('etag') || '"nomi-rev-0"';
   const documentResponse = await fetch(`${baseUrl}/api/studio/projects/NN-web-meta-a`, {
     method:'PUT',
-    headers:auth('meta-token-a',{'content-type':'application/json','if-match':'"nomi-rev-0"'}),
+    headers:auth('meta-token-a',{'content-type':'application/json','if-match':currentEtag}),
     body:JSON.stringify({document:{generationCanvas:{nodes:candidateAssets.map((asset, index) => ({id:`cover-node-${index}`,kind:'image',title:`封面节点 ${index + 1}`,result:{type:'image',assetId:asset.id,url:asset.downloadUrl}})),edges:[]}}})
   });
   assert.equal(documentResponse.status, 200);
