@@ -1,0 +1,85 @@
+{
+  "schema_version": "niannian.ai.online_release_baseline.v1",
+  "recorded_at": "2026-08-24T02:20:00+08:00",
+  "product": {
+    "domain": "https://ai.cauai.fun",
+    "source_boundary": "niannian-ai-canonical-local",
+    "invalid_release_sources": [
+      "niannian-ai-web",
+      "sd2.cauai.fun",
+      "localhost",
+      "Electron"
+    ]
+  },
+  "host": {
+    "ssh_alias": "haika-niannian-admin",
+    "hostname": "ser087508269396",
+    "role": "authoritative ai.cauai.fun production host"
+  },
+  "active_release": {
+    "release_id": "niannian-web-cebcdf4-launch-fixes-r1",
+    "parent_release_id": "niannian-web-2aa5a89-doubao-r2",
+    "package_path": "/opt/niannian-ai-releases/niannian-web-cebcdf4-launch-fixes-r1/package",
+    "static_link": "/var/www/niannian-ai",
+    "application_links": [
+      "/opt/niannian-ai"
+    ],
+    "approved_link": "/opt/niannian-ai-approved",
+    "activation_schema": "niannian_release_activation_v2",
+    "service": "niannian-ai.service",
+    "source_sha": "cebcdf4ddd1f04a579b5c6a26e192b726860cea3",
+    "github_pr": "https://github.com/1008611-creater/niannian-ai/pull/297",
+    "changed_files_sha256": {
+      "bridge/niannian_canvas_assets.js": "9a948ee56486b72a4ba03e901c1ba3360383bfde8b89400e98ec4ca4492d2c99",
+      "index.html": "078023f853a48728349f0f27d2086863ae0ea0a5c039046566d7ef285662e3b8",
+      "manifest.webmanifest": "7b94e1c5eeb0657fec40ddb138233db3f8c88bf1feb25185ae7dd737e26b91b4",
+      "mvp-step02-r13.js": "f6e557e9da38e9660d4ab588f2df0a6ea75e654005e6cdb5b78f231f59f7e5a9",
+      "server.js": "b942537fdb730012e575fd741262abd5150cffd61a3c3dce84504cf151e18b94",
+      "studio/assets/s1-chain-ui.js": "5620459de96be10d2d55b463abad025f95acc109cc5a38cba8e69d24edd09137",
+      "studio/index.html": "c0851e8decb025c81473884e33eaa298980fe361064fee2fbe8dd5e75035fd3a",
+      "sw.js": "485844cffa36074e4c8eb8925ea814586cc9841219ed697d4823e6ee23ddd49b",
+      "test_project_library_management_contract.js": "55170a4bbe75839a2ed1fcad4f09eacaf33f8554c7f4b56e03c5d204120493b8",
+      "test_studio_project_metadata.js": "679854c8e72b71aca7d25194d91fd435d7035f6e0c51c6f4b0f39b07b8232bc6",
+      "test_studio_s1_chain_ui_contract.js": "f86394a8f7ccb88b4e27037292c4c5b4a50622af8a30f71256a4e04c29b1e235",
+      "assets/brand/apple-touch-icon.png": "75ce88d48ff763c8d7ab4b7ab814564dd8fa000dd86893e3b4eb8c6b99366d78",
+      "assets/brand/icon-192.png": "b2618cf42f7b4843dea74e20da6754a174daaa44f1946ceb2c99bb5a0f7bca78",
+      "assets/brand/icon-512.png": "1ac32f25b2724c34c2762b7b59b85e9cc4c6dd973043603e7157c4c6ea7a75c1"
+    },
+    "byte_equality_note": "changed files verified sha256-identical between git blob aff4854 and deployed package; PNG/sw.js/test files matched on first sync, text files normalized from CRLF to LF before final verification"
+  },
+  "release_manifest": {
+    "schema_version": "niannian_main_site_release_package_v1",
+    "declared_scope": "launch-blocking user-visible bug fixes: auth/session hardening, canvas generation authorize flow (Image2/H3), upload size per kind + Range download, homepage legacy route redirect, single React entry for studio, SW stale-while-revalidate, PWA icons",
+    "entrypoints": {
+      "home": "/index.html",
+      "studio": "/studio/index.html",
+      "api": "/api/* via server.js (systemd niannian-ai.service)",
+      "static_root": "/var/www/niannian-ai"
+    },
+    "protected_surfaces": [
+      "step01_public_ui_v1",
+      "/studio/ canvas chain UI",
+      "credit reservation/settlement flow",
+      "asset upload/download contracts",
+      "auth rate limiting"
+    ],
+    "inherited_studio": {
+      "from_parent": "niannian-web-2aa5a89-doubao-r2",
+      "mode": "full package copy then overlay of changed files only"
+    }
+  },
+  "github_source_status": {
+    "repository": "https://github.com/1008611-creater/niannian-ai",
+    "branch": "main",
+    "merge_commit": "cebcdf4ddd1f04a579b5c6a26e192b726860cea3",
+    "change_branch": "launch-fixes",
+    "change_commit": "aff4854",
+    "pr": 297
+  },
+  "rollback": {
+    "release_id": "niannian-web-2aa5a89-doubao-r2",
+    "package_path": "/opt/niannian-ai-releases/niannian-web-2aa5a89-doubao-r2/package",
+    "procedure": "sudo ln -sfn /opt/niannian-ai-releases/niannian-web-2aa5a89-doubao-r2/package /opt/niannian-ai-approved && sudo systemctl start niannian-release-guard && sudo systemctl restart niannian-ai"
+  },
+  "candidate_rule": "Create each candidate by copying the active Haika approved package into a new versioned Haika candidate, overlay only reviewed changed files, write release-activation.json, pass verify_release_target.js, then repoint /opt/niannian-ai-approved and let niannian-release-guard enforce links. Never promote a GitHub worktree directly."
+}
