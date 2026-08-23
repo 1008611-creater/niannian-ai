@@ -1,0 +1,74 @@
+{
+  "schema_version": "niannian.ai.online_release_baseline.v1",
+  "recorded_at": "2026-08-24T02:20:00+08:00",
+  "product": {
+    "domain": "https://ai.cauai.fun",
+    "source_boundary": "niannian-ai-canonical-local",
+    "invalid_release_sources": [
+      "niannian-ai-web",
+      "sd2.cauai.fun",
+      "localhost",
+      "Electron"
+    ]
+  },
+  "host": {
+    "ssh_alias": "haika-niannian-admin",
+    "hostname": "ser087508269396",
+    "role": "authoritative ai.cauai.fun production host"
+  },
+  "active_release": {
+    "release_id": "niannian-web-b1664ff-nomi-only-r1",
+    "parent_release_id": "niannian-web-cebcdf4-launch-fixes-r1",
+    "package_path": "/opt/niannian-ai-releases/niannian-web-b1664ff-nomi-only-r1/package",
+    "static_link": "/var/www/niannian-ai",
+    "application_links": [
+      "/opt/niannian-ai"
+    ],
+    "approved_link": "/opt/niannian-ai-approved",
+    "activation_schema": "niannian_release_activation_v2",
+    "service": "niannian-ai.service",
+    "source_sha": "b1664ff2a45b0c67c1da9ddd2ac16d3b899314cb",
+    "github_pr": "https://github.com/1008611-creater/niannian-ai/pull/299",
+    "changed_files_sha256": {
+      "server.js": "c4fe28e7d94ae82cb79ac5f1bdd3f3427442d1b172bfa6df090b1c3bd9eaefcd",
+      "studio/index.html": "1e977f366a351f02075ff0b7cd3b227e5c42bcb672c00aaadf16ecbc6e037030",
+      "test_studio_legacy_s1_overlay_absent.js": "e7b8c204c04e6de4e8bc37e32f5f1c7d3f12a8a108593054b21519d346482cbe"
+    },
+    "deploy_note": "s1-chain overlay removed; full studio/ directory synced from repo b1664ff (launcher index-M-8MrEH2.js entry, 578 assets) after overlay-only sync caused entry mismatch with server-lineage builds. Browser verified: root mounted, zero JS errors, zero asset 404s. Welcome credits default 60."
+  },
+  "release_manifest": {
+    "schema_version": "niannian_main_site_release_package_v1",
+    "declared_scope": "canvas ships native nomi only (s1-chain/Image2/H3/skill-node overlays retired); new-user welcome credits default 60",
+    "entrypoints": {
+      "home": "/index.html",
+      "studio": "/studio/index.html",
+      "api": "/api/* via server.js (systemd niannian-ai.service)",
+      "static_root": "/var/www/niannian-ai"
+    },
+    "protected_surfaces": [
+      "step01_public_ui_v1",
+      "/studio/ canvas chain UI",
+      "credit reservation/settlement flow",
+      "asset upload/download contracts",
+      "auth rate limiting"
+    ],
+    "inherited_studio": {
+      "from_parent": "niannian-web-2aa5a89-doubao-r2",
+      "mode": "full package copy then overlay of changed files only"
+    }
+  },
+  "github_source_status": {
+    "repository": "https://github.com/1008611-creater/niannian-ai",
+    "branch": "main",
+    "merge_commit": "cebcdf4ddd1f04a579b5c6a26e192b726860cea3",
+    "change_branch": "launch-fixes",
+    "change_commit": "aff4854",
+    "pr": 297
+  },
+  "rollback": {
+    "release_id": "niannian-web-cebcdf4-launch-fixes-r1",
+    "package_path": "/opt/niannian-ai-releases/niannian-web-cebcdf4-launch-fixes-r1/package",
+    "procedure": "sudo ln -sfn /opt/niannian-ai-releases/niannian-web-cebcdf4-launch-fixes-r1/package /opt/niannian-ai-approved && sudo systemctl start niannian-release-guard && sudo systemctl restart niannian-ai"
+  },
+  "candidate_rule": "Create each candidate by copying the active Haika approved package into a new versioned Haika candidate, overlay only reviewed changed files, write release-activation.json, pass verify_release_target.js, then repoint /opt/niannian-ai-approved and let niannian-release-guard enforce links. Never promote a GitHub worktree directly."
+}
