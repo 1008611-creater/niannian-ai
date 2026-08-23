@@ -1227,13 +1227,26 @@ function normalizeEmail(value) {
 function parseCookies(request) {
   return String(request.headers.cookie || '').split(';').reduce((result, item) => {
     const split = item.indexOf('=');
-    if (split > 0) result[item.slice(0, split).trim()] = decodeURIComponent(item.slice(split + 1).trim());
+    if (split > 0) {
+      try {
+        result[item.slice(0, split).trim()] = decodeURIComponent(item.slice(split + 1).trim());
+      } catch { /* 单个畸形 cookie 不应拖垮整个请求，按未提供处理 */ }
+    }
     return result;
   }, {});
 }
 
 function requestIp(request) {
-  return String(request.headers['x-forwarded-for'] || request.socket.remoteAddress || '').split(',')[0].trim();
+  // Cloudflare 场景：cf-connecting-ip 由可信边缘写入，最可靠
+  const cfIp = String(request.headers['cf-connecting-ip'] || '').trim();
+  if (cfIp) return cfIp;
+  // 本地反代（nginx 等）场景：socket 是 loopback 时，XFF 最右一跳由可信代理追加
+  if (isLoopbackSocket(request)) {
+    const segments = String(request.headers['x-forwarded-for'] || '').split(',').map(item => item.trim()).filter(Boolean);
+    if (segments.length) return segments[segments.length - 1];
+  }
+  // 直连或不可信头：退回 socket 地址（客户端伪造的头不参与限流 key）
+  return String(request.socket?.remoteAddress || '').trim() || 'unknown';
 }
 
 function isLoopbackSocket(request) {
@@ -1295,9 +1308,11 @@ async function readBodyJson(request, maxBytes = 1024 * 1024) {
 
 async function createSession(user, request, response) {
   const token = crypto.randomBytes(32).toString('hex');
-  const sessions = (await readJson(sessionsPath)).filter(item => new Date(item.expiresAt).getTime() > Date.now());
-  sessions.push({ id:crypto.randomBytes(12).toString('hex'), userId:user.id, tokenHash:crypto.createHash('sha256').update(token).digest('hex'), createdAt:new Date().toISOString(), expiresAt:new Date(Date.now() + sessionTtlMs).toISOString() });
-  await writeJson(sessionsPath, sessions);
+  await withAuthStoreLock(async () => {
+    const sessions = (await readJson(sessionsPath)).filter(item => new Date(item.expiresAt).getTime() > Date.now());
+    sessions.push({ id:crypto.randomBytes(12).toString('hex'), userId:user.id, tokenHash:crypto.createHash('sha256').update(token).digest('hex'), createdAt:new Date().toISOString(), expiresAt:new Date(Date.now() + sessionTtlMs).toISOString() });
+    await writeJson(sessionsPath, sessions);
+  });
   json(response, 200, { user:{ id:user.id, email:user.email, isAdmin:modelControlPlane.isAdmin(user) } }, { 'Set-Cookie':sessionCookie(token) });
 }
 
@@ -1312,26 +1327,51 @@ async function currentUser(request) {
   return user ? { id:user.id, email:user.email, role:user.role || null, tenantId:user.tenantId || user.id } : (previewAutoLogin ? previewUser : null);
 }
 
+// users.json / sessions.json 是整文件读改写；不加锁时两个并发请求会基于过期快照互相覆盖，
+// 造成"注册成功却查无此用户"。这里用 promise 链串行化所有认证存储写。
+let authStoreLock = Promise.resolve();
+function withAuthStoreLock(task) {
+  const run = authStoreLock.then(task, task);
+  authStoreLock = run.then(() => {}, () => {});
+  return run;
+}
+
 async function handleRegister(request, response) {
-  const body = await readBodyJson(request);
+  let body;
+  try { body = await readBodyJson(request); }
+  catch (error) {
+    if (error && error.message === 'REQUEST_TOO_LARGE') return json(response, 413, { code:'REQUEST_TOO_LARGE', error:'请求体过大' });
+    return json(response, 400, { code:'REQUEST_INVALID', error:'请求格式无效，请刷新后重试' });
+  }
   const email = normalizeEmail(body.email);
   const password = String(body.password || '');
-  const rateKey = 'register:' + requestIp(request) + ':' + email;
+  const rateKey = 'register:' + requestIp(request);
   if (!consumeRateLimit(rateKey, 5, 60 * 60 * 1000)) return json(response, 429, { code:'AUTH_RATE_LIMITED', error:'注册请求过于频繁，请稍后再试' });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(response, 400, { code:'EMAIL_INVALID', error:'请输入有效邮箱' });
   if (password.length < 8 || password.length > 128) return json(response, 400, { code:'PASSWORD_INVALID', error:'密码至少需要 8 位' });
-  const users = await readJson(usersPath);
-  if (users.some(item => item.email === email)) return json(response, 409, { code:'EMAIL_ALREADY_REGISTERED', error:'该邮箱已经注册' });
   const salt = crypto.randomBytes(16).toString('hex');
-  const user = { id:'USR-' + crypto.randomBytes(8).toString('hex').toUpperCase(), email, tenantId:'TEN-' + crypto.randomBytes(8).toString('hex').toUpperCase(), passwordSalt:salt, passwordHash:await scryptPassword(password, salt), status:'active', createdAt:new Date().toISOString() };
-  users.push(user);
-  await writeJson(usersPath, users);
+  const passwordHash = await scryptPassword(password, salt);
+  const user = await withAuthStoreLock(async () => {
+    const users = await readJson(usersPath);
+    // 锁内复查：并发注册同一邮箱只允许一个成功
+    if (users.some(item => item.email === email)) return null;
+    const created = { id:'USR-' + crypto.randomBytes(8).toString('hex').toUpperCase(), email, tenantId:'TEN-' + crypto.randomBytes(8).toString('hex').toUpperCase(), passwordSalt:salt, passwordHash, status:'active', createdAt:new Date().toISOString() };
+    users.push(created);
+    await writeJson(usersPath, users);
+    return created;
+  });
+  if (!user) return json(response, 409, { code:'EMAIL_ALREADY_REGISTERED', error:'该邮箱已经注册' });
   await auditAuth('register_success', request, { user_id:user.id });
   return createSession(user, request, response);
 }
 
 async function handleLogin(request, response) {
-  const body = await readBodyJson(request);
+  let body;
+  try { body = await readBodyJson(request); }
+  catch (error) {
+    if (error && error.message === 'REQUEST_TOO_LARGE') return json(response, 413, { code:'REQUEST_TOO_LARGE', error:'请求体过大' });
+    return json(response, 400, { code:'REQUEST_INVALID', error:'请求格式无效，请刷新后重试' });
+  }
   const email = normalizeEmail(body.email);
   const password = String(body.password || '');
   const rateKey = 'login:' + requestIp(request) + ':' + email;
@@ -1350,7 +1390,9 @@ async function handleLogout(request, response) {
   const token = parseCookies(request).niannian_session;
   if (token) {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    await writeJson(sessionsPath, (await readJson(sessionsPath)).filter(item => item.tokenHash !== tokenHash));
+    await withAuthStoreLock(async () => {
+      await writeJson(sessionsPath, (await readJson(sessionsPath)).filter(item => item.tokenHash !== tokenHash));
+    });
   }
   json(response, 200, { ok:true }, { 'Set-Cookie':sessionCookie('', 0) });
 }
@@ -7269,7 +7311,7 @@ async function handleCanvasAssetsApi(request, response, pathname, user) {
     let uploadError = null;
     let uploadPromise = Promise.resolve();
     let busboy;
-    try { busboy = Busboy({headers:request.headers,limits:{files:1,fileSize:canvasAssetService.maxBytes,fields:8}}); }
+    try { busboy = Busboy({headers:request.headers,limits:{files:1,fileSize:canvasAssetService.maxOutputBytes,fields:8}}); }
     catch { return json(response, 400, {code:'CANVAS_ASSET_MULTIPART_REQUIRED',error:'请使用 multipart/form-data 上传项目素材'}); }
     busboy.on('field', (name, value) => { fields[name] = value; });
     busboy.on('file', (name, file, info) => {
@@ -7346,7 +7388,37 @@ async function handleCanvasAssetsApi(request, response, pathname, user) {
     const stat = await fsp.stat(asset.storedPath).catch(() => null);
     if (!stat || stat.size !== Number(asset.bytes)) return json(response, 409, {code:'CANVAS_ASSET_INTEGRITY_FAILED',error:'素材暂时无法读取'});
     const download = new URL(request.url, 'http://127.0.0.1').searchParams.get('download') === '1';
-    const headers = {'Content-Type':asset.mimeType,'Content-Length':stat.size,'Cache-Control':'private, no-store','ETag':'"' + asset.sha256 + '"','X-Content-SHA256':asset.sha256,'X-Content-Type-Options':'nosniff','Content-Disposition':(download ? 'attachment' : 'inline') + '; filename="' + safeName(asset.originalName) + '"'};
+    const disposition = (download ? 'attachment' : 'inline') + '; filename="' + safeName(asset.originalName) + '"';
+    // Range 支持：视频/音频内联预览可拖动进度条，下载可断点续传
+    const rangeHeader = String(request.headers.range || '').trim();
+    let range = null;
+    if (/^bytes=\d*-\d*(,\s*\d*-\d*)*$/.test(rangeHeader)) {
+      const first = rangeHeader.slice(6).split(',')[0];
+      const [startRaw, endRaw] = first.split('-');
+      let start; let end;
+      if (startRaw === '') {
+        const suffix = Number(endRaw);
+        start = Math.max(0, stat.size - suffix);
+        end = stat.size - 1;
+      } else {
+        start = Number(startRaw);
+        end = endRaw === '' ? stat.size - 1 : Math.min(Number(endRaw), stat.size - 1);
+      }
+      if (Number.isSafeInteger(start) && Number.isSafeInteger(end) && start >= 0 && start <= end && start < stat.size) range = {start, end};
+      else {
+        response.writeHead(416, {'Content-Range':'bytes */' + stat.size,'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, no-store'});
+        return response.end(JSON.stringify({code:'CANVAS_ASSET_RANGE_INVALID',error:'请求的文件范围无效'}));
+      }
+    }
+    const headers = {'Content-Type':asset.mimeType,'Cache-Control':'private, no-store','ETag':'"' + asset.sha256 + '"','X-Content-SHA256':asset.sha256,'X-Content-Type-Options':'nosniff','Content-Disposition':disposition,'Accept-Ranges':'bytes'};
+    if (range) {
+      headers['Content-Range'] = 'bytes ' + range.start + '-' + range.end + '/' + stat.size;
+      headers['Content-Length'] = range.end - range.start + 1;
+      response.writeHead(206, headers);
+      if (request.method === 'HEAD') return response.end();
+      return fs.createReadStream(asset.storedPath, {start:range.start, end:range.end}).pipe(response);
+    }
+    headers['Content-Length'] = stat.size;
     response.writeHead(200, headers);
     if (request.method === 'HEAD') return response.end();
     return fs.createReadStream(asset.storedPath).pipe(response);
@@ -7936,7 +8008,7 @@ function internalCanvasAssetTitle(fields, fallback) {
 async function readInternalCanvasAssetMultipart(request) {
   return new Promise((resolve, reject) => {
     let busboy;
-    try { busboy = Busboy({headers:request.headers,limits:{files:1,fileSize:canvasAssetService.maxBytes,fields:8}}); }
+    try { busboy = Busboy({headers:request.headers,limits:{files:1,fileSize:canvasAssetService.maxOutputBytes,fields:8}}); }
     catch { reject(Object.assign(new Error('请使用 multipart/form-data 导入素材'), {code:'INTERNAL_CANVAS_ASSET_MULTIPART_REQUIRED',httpStatus:400})); return; }
     const fields = Object.create(null);
     let source = null;
@@ -8500,7 +8572,9 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
       if (job.nodeType === 'video') {
         const runtime = canvasVideoChannels.isDolaVideoChannel(job.videoChannel)
           ? canvasDolaRuntime
-          : (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) ? canvasAnimateRuntime : canvasH3Runtime);
+          : (canvasVideoChannels.isDoubaoVideoChannel(job.videoChannel)
+            ? canvasDoubaoRuntime
+            : (canvasVideoChannels.isAnimateVideoChannel(job.videoChannel) ? canvasAnimateRuntime : canvasH3Runtime));
         let submitted;
         try { submitted = await runtime.submit(user.id, projectId, jobId); }
         catch (error) { await modelControlPlane.refundCredits({reservationId:reservation.reservationId,reason:'provider_submit_failed',idempotencyKey:job.id + ':refund'}); await canvasGenerationJobService.updateOwned(user.id, projectId, jobId, {creditState:'refunded'}); throw error; }
@@ -9662,7 +9736,7 @@ async function handleApi(request, response, pathname) {
   if (request.method === 'POST' && pathname === '/api/auth/logout') return handleLogout(request, response);
   if (request.method === 'GET' && pathname === '/api/auth/session') {
     const user = await currentUser(request);
-    return json(response, 200, {user});
+    return json(response, 200, { user:user ? { ...user, isAdmin:modelControlPlane.isAdmin(user) } : user });
   }
   const user = await currentUser(request);
   if (!user) return json(response, 401, {code:'AUTH_REQUIRED',error:'请先登录'});
@@ -10400,7 +10474,7 @@ async function handleApi(request, response, pathname) {
 async function serveStatic(request, response, pathname) {
   const relative = pathname === '/' ? 'index.html' : (pathname.startsWith('/') ? pathname.slice(1) : pathname);
   const filePath = path.resolve(root, relative);
-  if (!filePath.startsWith(root)) { response.writeHead(403); return response.end('Forbidden'); }
+  if (filePath !== root && !filePath.startsWith(root + path.sep)) { response.writeHead(403); return response.end('Forbidden'); }
   try {
     const stats = await fsp.stat(filePath);
     const resolved = stats.isDirectory() ? path.join(filePath,'index.html') : filePath;
@@ -10435,8 +10509,9 @@ const server = http.createServer(async (request, response) => {
     if (await serveRestrictedCommerce(request, response, pathname)) return;
     return await serveStatic(request, response, pathname);
   } catch (error) {
+    console.error('[server]', request.method, pathname, error && (error.stack || error.message) || error);
     if(response.headersSent){if(!response.destroyed)response.destroy();return;}
-    json(response, 500, {error:error.message});
+    json(response, 500, {error:'服务器开小差了，请稍后重试'});
   }
 });
 

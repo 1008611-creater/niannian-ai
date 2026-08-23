@@ -3046,6 +3046,12 @@
   }
 
   function openScriptStudio(projectId, {updateHash = true} = {}) {
+    if (!document.getElementById('scriptStudioContent')) {
+      // 短剧工作台视图容器已从首页移除；旧链接与快速导航统一改跳画布 Studio，避免整页空白。
+      const fallback = '/studio/#/studio' + (projectId ? '?projectId=' + encodeURIComponent(projectId) : '');
+      window.location.replace(fallback);
+      return;
+    }
     const project = state.scriptProjects.find(item => item.id === projectId) || state.scriptProjects[0] || null;
     const preserveCandidateEditor = isEditingScriptCandidate(project?.id);
     state.scriptStudioProjectId = project?.id || null;
@@ -3065,6 +3071,12 @@
   }
 
   function openRedrawStudio(projectId, {updateHash = true} = {}) {
+    if (!document.getElementById('redrawStudioContent')) {
+      // 转绘工作台视图容器已从首页移除；旧链接统一改跳画布 Studio，避免整页空白。
+      const fallback = '/studio/#/studio' + (projectId && projectId !== 'new' ? '?projectId=' + encodeURIComponent(projectId) : '');
+      window.location.replace(fallback);
+      return;
+    }
     const requestedId=String(projectId||'new');
     const project = requestedId==='new' ? null : (state.projects.find(item => item.id === requestedId) || null);
     state.redrawStudioProjectId = project?.id || null;

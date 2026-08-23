@@ -180,6 +180,44 @@
     var image2AssetsEl = panel.querySelector('[data-s2-assets]');
     var image2PreviewEl = panel.querySelector('[data-s2-preview]');
     var image2JobId = null;
+    // idle：未建立候选；awaiting：dry-run 通过待授权；submitted：已提交服务端
+    var image2JobState = 'idle';
+    var jobWatchTimers = {};
+    var jobWatchErrors = {};
+    function stopJobWatch(key) { clearTimeout(jobWatchTimers[key]); delete jobWatchTimers[key]; }
+    function specHash(value) {
+      var text = String(value == null ? '' : value);
+      var hash = 5381;
+      for (var i = 0; i < text.length; i += 1) hash = ((hash << 5) + hash + text.charCodeAt(i)) >>> 0;
+      return hash.toString(36);
+    }
+    // 授权提交后轮询单任务状态，把 queued/running/succeeded/failed 与错误原因呈现给用户
+    function watchJob(key, jobId, labels) {
+      stopJobWatch(key);
+      jobWatchErrors[key] = 0;
+      var tick = function () {
+        api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs/' + encodeURIComponent(jobId)).then(function (result) {
+          var job = result.body && result.body.job;
+          if (!job) throw new Error('服务器没有返回任务状态');
+          if (job.status === 'succeeded') {
+            setStatus(labels.done);
+            if (labels.onDone) labels.onDone();
+            return;
+          }
+          if (['failed', 'cancelled', 'review'].includes(job.status)) {
+            setStatus(labels.failedPrefix + (job.error ? '：' + job.error : ''), true);
+            if (labels.onFailed) labels.onFailed();
+            return;
+          }
+          if (projectId()) jobWatchTimers[key] = setTimeout(tick, 4000);
+        }).catch(function (error) {
+          jobWatchErrors[key] += 1;
+          if (jobWatchErrors[key] <= 5 && projectId()) { jobWatchTimers[key] = setTimeout(tick, 4000); return; }
+          setStatus((error.message || '状态查询失败') + '；请点击"刷新素材"查看结果。', true);
+        });
+      };
+      tick();
+    }
     function installGenerationControls() {
       // Keep the menu aligned with the server registry. The old Yunfei and
       // RunningHub labels were UI-only values and were rejected on save.
@@ -197,7 +235,7 @@
       if (panel.querySelector('[data-node="h3"]')) return;
       var card = document.createElement('article');
       card.className = 's1-node'; card.dataset.node = 'h3'; card.dataset.status = 'draft';
-      card.innerHTML = '<div class="s1-meta"><span>Skill 节点 · minimaxh3skill</span><small data-node-status>draft</small></div><h3>H3 生视频</h3><p>接收视频提示词与关键帧参考，生成任务始终由念念服务端创建、轮询并回库。</p><div class="s1-ports"><div class="s1-port-group input"><small>输入</small><button type="button" class="s1-port-handle s1-input-port" data-s1-input-node="s3-h3-video" data-s1-input-port="prompt" title="拖入 prompt 输出">prompt</button><button type="button" class="s1-port-handle s1-input-port" data-s1-input-node="s3-h3-video" data-s1-input-port="image_asset" title="拖入 image_asset 输出">image_asset</button></div><div class="s1-port-group output"><small>输出</small><button type="button" class="s1-port-handle s1-output-port" data-s1-output-node="s3-h3-video" data-s1-output-port="video_asset" title="从此端口拖到兼容输入">video_asset</button></div></div><div class="s1-assets" data-s3-assets><span>正在读取关键帧参考...</span></div><label class="s1-row"><span>提示词</span><input data-s3-prompt placeholder="描述镜头运动和画面连续性" style="flex:1;min-width:0;padding:6px;border:1px solid rgba(90,64,42,.2);border-radius:7px"></label><div class="s1-row"><span>规格</span><select data-s3-aspect><option value="9:16">9:16</option><option value="16:9">16:9</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select><select data-s3-resolution><option value="2k">2K</option><option value="1k">1K</option><option value="4k">4K</option></select><select data-s3-duration><option value="5">5 秒</option><option value="10">10 秒</option><option value="15">15 秒</option></select></div><div class="s1-status" data-s3-status>未创建任务；先保存 H3 节点合同。</div><div class="s1-preview" data-s3-preview>结果预览：等待 H3 产物</div><div class="s1-row"><button type="button" data-s3-create class="s1-secondary">保存 H3 节点</button><button type="button" data-s3-dry disabled>准备任务</button></div>';
+      card.innerHTML = '<div class="s1-meta"><span>Skill 节点 · minimaxh3skill</span><small data-node-status>draft</small></div><h3>H3 生视频</h3><p>接收视频提示词与关键帧参考，生成任务始终由念念服务端创建、轮询并回库。</p><div class="s1-ports"><div class="s1-port-group input"><small>输入</small><button type="button" class="s1-port-handle s1-input-port" data-s1-input-node="s3-h3-video" data-s1-input-port="prompt" title="拖入 prompt 输出">prompt</button><button type="button" class="s1-port-handle s1-input-port" data-s1-input-node="s3-h3-video" data-s1-input-port="image_asset" title="拖入 image_asset 输出">image_asset</button></div><div class="s1-port-group output"><small>输出</small><button type="button" class="s1-port-handle s1-output-port" data-s1-output-node="s3-h3-video" data-s1-output-port="video_asset" title="从此端口拖到兼容输入">video_asset</button></div></div><div class="s1-assets" data-s3-assets><span>正在读取关键帧参考...</span></div><label class="s1-row"><span>提示词</span><input data-s3-prompt placeholder="描述镜头运动和画面连续性" style="flex:1;min-width:0;padding:6px;border:1px solid rgba(90,64,42,.2);border-radius:7px"></label><div class="s1-row"><span>规格</span><select data-s3-aspect><option value="9:16">9:16</option><option value="16:9">16:9</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select><select data-s3-resolution><option value="2k">2K</option><option value="1k">1K</option><option value="4k">4K</option></select><select data-s3-duration><option value="5">5 秒</option><option value="10">10 秒</option><option value="15">15 秒</option></select></div><div class="s1-status" data-s3-status>未创建任务；先保存 H3 节点合同。</div><div class="s1-preview" data-s3-preview>结果预览：等待 H3 产物</div><div class="s1-row"><button type="button" data-s3-create class="s1-secondary">保存 H3 节点</button><button type="button" data-s3-dry disabled>准备任务</button><button type="button" data-s3-authorize disabled>授权并生成</button></div>';
       nodesEl.insertBefore(card, panel.querySelector('[data-s1-context]'));
     }
     installH3NodeCard();
@@ -223,7 +261,9 @@
     var h3Create = panel.querySelector('[data-s3-create]');
     var h3Dry = panel.querySelector('[data-s3-dry]');
     var h3AssetsEl = panel.querySelector('[data-s3-assets]');
+    var h3Authorize = panel.querySelector('[data-s3-authorize]');
     var h3JobId = null;
+    var h3JobState = 'idle';
     var revision = 0;
     var assets = [];
     var chainReady = false;
@@ -269,6 +309,8 @@
       var node = id && nodeById[id];
       if (!node) { clearNodeSelection(); return; }
       var title = node.data && node.data.title || node.skillKey || id;
+      // 误按 Delete/Backspace 会立即持久化删除节点与连线，先确认一次
+      if (!window.confirm('确定删除节点「' + title + '」吗？与其相连的连线也会一并删除。')) return;
       var previousNodes = canvasDocument.nodes;
       var previousEdges = canvasDocument.edges || [];
       var previousDeletedNodeIds = canvasDocument.deletedNodeIds || [];
@@ -311,11 +353,17 @@
       image2Output.textContent = valid ? ((hasReferences ? '3840x2160' : '2160x3840') + ' · ' + (hasReferences ? '参考图模式' : '文生图模式') + ' · 未授权不提交 Provider') : (hasReferences ? '添加参考图时仅支持 4K 横向 16:9' : '无参考图时仅支持 4K 竖向 9:16');
       image2Create.disabled = !image2Prompt.value.trim() || !valid;
       image2Dry.disabled = image2Create.disabled;
-      image2Authorize.disabled = !image2JobId;
+      image2Authorize.disabled = !(image2JobId && image2JobState === 'awaiting');
+      image2Authorize.textContent = image2JobState === 'submitted' ? '已提交' : '授权并生成';
     }
     function selectedImage2Ids() { return Array.prototype.slice.call(panel.querySelectorAll('input[data-s2-asset]:checked')).map(function (input) { return input.value; }); }
     function selectedH3Ids() { return Array.prototype.slice.call(panel.querySelectorAll('input[data-s3-asset]:checked')).map(function (input) { return input.value; }); }
-    function syncH3Spec() { h3Create.disabled = false; h3Dry.disabled = !nodeById['s3-h3-video']; }
+    function syncH3Spec() {
+      h3Create.disabled = false;
+      h3Dry.disabled = !nodeById['s3-h3-video'];
+      h3Authorize.disabled = !(h3JobId && h3JobState === 'awaiting');
+      h3Authorize.textContent = h3JobState === 'submitted' ? '已提交' : '授权并生成';
+    }
     function positionOf(key) { var node = nodeById[nodeIds[key]]; return node && node.position || {x:key === 'source' ? 90 : key === 'step01' ? 400 : key === 'step02' ? 710 : key === 'image2' ? 1020 : 1320,y:150}; }
     function applyNodePositions() {
       ['source','step01','step02','image2','h3'].forEach(function (key) { var card = panel.querySelector('[data-node="' + key + '"]'); var pos = positionOf(key); card.style.left = String(pos.x) + 'px'; card.style.top = String(pos.y) + 'px'; });
@@ -569,6 +617,7 @@
       }
       scheduleStep01Poll(String(project && project.analysis && project.analysis.status || ''));
     }
+    var step01PollFailures = 0;
     function scheduleStep01Poll(status) {
       clearTimeout(step01PollTimer);
       var active = ['queued','capability_preflight','codex_dispatched','codex_running','return_received','reducer_verifying','running','running_step01','prepared'].includes(String(status || '').toLowerCase());
@@ -576,9 +625,15 @@
       step01PollTimer = setTimeout(async function () {
         try {
           var result = await api(projectListPath());
+          step01PollFailures = 0;
           var projects = Array.isArray(result.body.projects) ? result.body.projects : [];
           await syncStep01Runtime(projects.find(function (item) { return item && item.id === projectId(); }) || null, true);
-        } catch (error) { setStatus(error.message || '读取 Step01 状态失败', true); }
+        } catch (error) {
+          // 单次网络抖动不应让轮询静默死亡；连续失败超过 5 次才提示
+          step01PollFailures += 1;
+          if (step01PollFailures <= 5) scheduleStep01Poll(status);
+          else setStatus(error.message || '读取 Step01 状态失败，已停止自动刷新', true);
+        }
       }, 3000);
     }
     function renderNodes(nodes) {
@@ -669,7 +724,40 @@
         await syncStep01Runtime(listedProjects.find(function (item) { return item && item.id === id; }) || null, true);
         var existingChain = existingNodes.some(function (node) { return node.id === 's1-source-input'; });
         if (existingChain) setStatus('S1 节点链已存在，可继续在画布中编辑。');
+        await restorePendingJobs(id);
       } catch (error) { setStatus(error.message || '读取项目状态失败', true); }
+    }
+    // 刷新页面后从服务端恢复未完成候选/进行中的任务，避免 awaiting_authorization 变成孤儿
+    async function restorePendingJobs(id) {
+      try {
+        var jobsResult = await api('/api/projects/' + encodeURIComponent(id) + '/canvas/jobs');
+        var jobs = Array.isArray(jobsResult.body.jobs) ? jobsResult.body.jobs : [];
+        var latestPending = function (nodeKey) {
+          var candidates = jobs.filter(function (job) { return job && job.nodeId === nodeIds[nodeKey] && ['awaiting_authorization', 'queued', 'running'].includes(job.status); });
+          candidates.sort(function (a, b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+          return candidates[0] || null;
+        };
+        var pendingImage2 = latestPending('image2');
+        if (pendingImage2) {
+          image2JobId = pendingImage2.id;
+          image2JobState = pendingImage2.status === 'awaiting_authorization' ? 'awaiting' : 'submitted';
+          image2Status.textContent = pendingImage2.status === 'awaiting_authorization'
+            ? '已恢复待授权的 Image2 任务；确认规格后点击"授权并生成"。'
+            : 'Image2 任务正在生成（' + pendingImage2.status + '），完成后自动回库。';
+          if (image2JobState === 'submitted') watchJob('image2', image2JobId, {done:'Image2 已生成，产物已回库到素材列表。', failedPrefix:'Image2 生成未完成', onDone:function(){ load(); }});
+        }
+        var pendingH3 = latestPending('h3');
+        if (pendingH3) {
+          h3JobId = pendingH3.id;
+          h3JobState = pendingH3.status === 'awaiting_authorization' ? 'awaiting' : 'submitted';
+          h3Status.textContent = pendingH3.status === 'awaiting_authorization'
+            ? '已恢复待授权的 H3 任务；确认规格后点击"授权并生成"。'
+            : 'H3 任务正在生成（' + pendingH3.status + '），完成后自动回库。';
+          if (h3JobState === 'submitted') watchJob('h3', h3JobId, {done:'H3 视频已生成，产物已回库到素材列表。', failedPrefix:'H3 生成未完成', onDone:function(){ load(); }});
+        }
+      } catch { /* 任务恢复失败不阻塞画布加载 */ }
+      syncImage2Spec();
+      syncH3Spec();
     }
     async function create() {
       createBtn.disabled = true;
@@ -703,20 +791,31 @@
     async function dryRunImage2() {
       image2Dry.disabled = true; image2Status.textContent = '正在建立 Image2 候选并执行 dry-run（不提交 Provider）...';
       try {
-        var prepared = await api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs', {method:'POST', headers:{'content-type':'application/json','idempotency-key':'s2-image2-' + Date.now()}, body:JSON.stringify({projectKind:projectKind(),nodeId:'s2-image2-keyframe',model:image2Channel.value,prompt:image2Prompt.value,resolution:image2Resolution.value,aspectRatio:image2Aspect.value,inputAssetIds:selectedImage2Ids()})});
+        // 幂等键由节点+规格派生：重试复用同一候选，不再每次点击都新建任务
+        var idempotencyKey = 's2-image2-' + projectId() + '-' + specHash(JSON.stringify([image2Prompt.value, image2Channel.value, image2Resolution.value, image2Aspect.value, selectedImage2Ids()]));
+        var prepared = await api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs', {method:'POST', headers:{'content-type':'application/json','idempotency-key':idempotencyKey}, body:JSON.stringify({projectKind:projectKind(),nodeId:'s2-image2-keyframe',model:image2Channel.value,prompt:image2Prompt.value,resolution:image2Resolution.value,aspectRatio:image2Aspect.value,inputAssetIds:selectedImage2Ids()})});
         image2JobId = prepared.body.job && prepared.body.job.id;
         if (!image2JobId) throw new Error('服务器没有返回 Image2 候选任务');
         var dry = await api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs/' + encodeURIComponent(image2JobId) + '/dry-run', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({projectKind:projectKind()})});
-        image2Status.textContent = dry.body.dryRun && dry.body.dryRun.providerSubmitEnabled ? '规格检查通过；提交前仍需明确授权。' : '规格检查通过；当前仅建立候选，Provider 未启用或未授权。'; image2Authorize.disabled = false;
-      } catch (error) { image2Status.textContent = (error.code ? error.code + ': ' : '') + (error.message || '准备失败'); image2Dry.disabled = false; }
+        image2JobState = 'awaiting';
+        image2Status.textContent = dry.body.dryRun && dry.body.dryRun.providerSubmitEnabled ? '规格检查通过；提交前仍需明确授权。' : '规格检查通过；当前仅建立候选，Provider 未启用或未授权。';
+      } catch (error) { image2Status.textContent = (error.code ? error.code + ': ' : '') + (error.message || '准备失败'); }
+      syncImage2Spec();
     }
     async function authorizeImage2() {
-      if (!image2JobId) return;
+      if (!image2JobId || image2JobState !== 'awaiting') return;
       image2Authorize.disabled = true; image2Status.textContent = '正在授权并提交 Image2 生成...';
       try {
         var result = await api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs/' + encodeURIComponent(image2JobId) + '/authorize', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({confirmProviderSpend:true})});
-        image2Status.textContent = result.body.code === 'CANVAS_GENERATION_SUBMITTED' ? 'Image2 已提交，等待生成结果。' : (result.body.code || 'Image2 已提交。');
-      } catch (error) { image2Status.textContent = (error.code ? error.code + ': ' : '') + (error.message || '授权提交失败'); image2Authorize.disabled = false; }
+        image2JobState = 'submitted';
+        image2Status.textContent = result.body.code === 'CANVAS_GENERATION_SUBMITTED' ? 'Image2 已提交，正在生成（约需几分钟）...' : (result.body.code || 'Image2 已提交。');
+        watchJob('image2', image2JobId, {
+          done: 'Image2 已生成，产物已回库到素材列表。',
+          failedPrefix: 'Image2 生成未完成',
+          onDone: function () { load(); }
+        });
+      } catch (error) { image2Status.textContent = (error.code ? error.code + ': ' : '') + (error.message || '授权提交失败'); }
+      syncImage2Spec();
     }
     async function createH3() {
       h3Create.disabled = true; h3Status.textContent = '正在保存 H3 节点合同...';
@@ -729,16 +828,33 @@
     async function dryRunH3() {
       h3Dry.disabled = true; h3Status.textContent = '正在建立 H3 候选并执行 dry-run（不提交 Provider）...';
       try {
-        var prepared = await api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs', {method:'POST',headers:{'content-type':'application/json','idempotency-key':'s3-h3-' + Date.now()},body:JSON.stringify({projectKind:projectKind(),nodeId:'s3-h3-video',model:'minimax-h3',prompt:h3Prompt.value,aspectRatio:h3Aspect.value,resolution:h3Resolution.value,durationSeconds:Number(h3Duration.value),inputAssetIds:selectedH3Ids()})});
+        var idempotencyKey = 's3-h3-' + projectId() + '-' + specHash(JSON.stringify([h3Prompt.value, h3Aspect.value, h3Resolution.value, h3Duration.value, selectedH3Ids()]));
+        var prepared = await api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs', {method:'POST',headers:{'content-type':'application/json','idempotency-key':idempotencyKey},body:JSON.stringify({projectKind:projectKind(),nodeId:'s3-h3-video',model:'minimax-h3',prompt:h3Prompt.value,aspectRatio:h3Aspect.value,resolution:h3Resolution.value,durationSeconds:Number(h3Duration.value),inputAssetIds:selectedH3Ids()})});
         h3JobId = prepared.body.job && prepared.body.job.id;
         if (!h3JobId) throw new Error('服务器没有返回 H3 候选任务');
         var dry = await api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs/' + encodeURIComponent(h3JobId) + '/dry-run', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectKind:projectKind()})});
-        h3Status.textContent = dry.body.dryRun && dry.body.dryRun.providerSubmitEnabled ? '规格检查通过；提交前仍需明确授权。' : '规格检查通过；当前仅建立候选，Provider 未启用或未授权。';
+        h3JobState = 'awaiting';
+        h3Status.textContent = dry.body.dryRun && dry.body.dryRun.providerSubmitEnabled ? '规格检查通过；点击"授权并生成"提交服务端执行。' : '规格检查通过；当前仅建立候选，Provider 未启用或未授权。';
       } catch (error) {
         h3Status.textContent = error.code === 'CANVAS_SKILL_COMPILED_PROMPT_REQUIRED'
           ? '等待 Hell Grind 完成 video_prompt 编译后再准备 H3 任务。'
           : (error.code ? error.code + ': ' : '') + (error.message || '准备失败');
       }
+      syncH3Spec();
+    }
+    async function authorizeH3() {
+      if (!h3JobId || h3JobState !== 'awaiting') return;
+      h3Authorize.disabled = true; h3Status.textContent = '正在授权并提交 H3 生成...';
+      try {
+        var result = await api('/api/projects/' + encodeURIComponent(projectId()) + '/canvas/jobs/' + encodeURIComponent(h3JobId) + '/authorize', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({confirmProviderSpend:true})});
+        h3JobState = 'submitted';
+        h3Status.textContent = result.body.code === 'CANVAS_GENERATION_SUBMITTED' ? 'H3 已提交，正在生成（约需几分钟）...' : (result.body.code || 'H3 已提交。');
+        watchJob('h3', h3JobId, {
+          done: 'H3 视频已生成，产物已回库到素材列表。',
+          failedPrefix: 'H3 生成未完成',
+          onDone: function () { load(); }
+        });
+      } catch (error) { h3Status.textContent = (error.code ? error.code + ': ' : '') + (error.message || '授权提交失败'); }
       syncH3Spec();
     }
     var contextMenu = panel.querySelector('[data-s1-context]');
@@ -829,7 +945,7 @@
     panel.querySelector('[data-s1-refresh]').addEventListener('click', load);
     startBtn.addEventListener('click', startStep01);
     image2Create.addEventListener('click', createImage2); image2Dry.addEventListener('click', dryRunImage2); image2Authorize.addEventListener('click', authorizeImage2);
-    h3Create.addEventListener('click', createH3); h3Dry.addEventListener('click', dryRunH3);
+    h3Create.addEventListener('click', createH3); h3Dry.addEventListener('click', dryRunH3); h3Authorize.addEventListener('click', authorizeH3);
     [image2Prompt,image2Channel,image2Resolution,image2Aspect].forEach(function (el) { el.addEventListener('input', syncImage2Spec); el.addEventListener('change', syncImage2Spec); });
     [h3Prompt,h3Aspect,h3Resolution,h3Duration].forEach(function (el) { el.addEventListener('input', syncH3Spec); el.addEventListener('change', syncH3Spec); });
     syncImage2Spec();

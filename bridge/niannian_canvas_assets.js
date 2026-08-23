@@ -111,8 +111,10 @@ function createCanvasAssetService(options = {}) {
     const format = FORMATS[clean(input.format, 12).toLowerCase()];
     const kind = clean(input.kind || 'reference_image', 40);
     if (!ownerId || !projectId || !['redraw','script'].includes(projectKind) || !Object.prototype.hasOwnProperty.call(KIND_FORMATS, kind)) throw assetError('CANVAS_ASSET_INPUT_INVALID', '素材归属信息无效', 422);
-    const maxAllowedBytes = kind.startsWith('reference_') ? maxBytes : maxOutputBytes;
-    if (!format || !KIND_FORMATS[kind].includes(clean(input.format, 12).toLowerCase()) || !/^[a-f0-9]{64}$/.test(sha256) || !Number.isSafeInteger(bytes) || bytes <= 0 || bytes > maxAllowedBytes) throw assetError('CANVAS_ASSET_METADATA_INVALID', '素材完整性信息无效', 422);
+    // 图片参考素材沿用严格上限；音视频参考素材放宽到与生成产物同级，避免原片动辄超限
+    const maxAllowedBytes = kind === 'reference_image' ? maxBytes : maxOutputBytes;
+    if (!format || !KIND_FORMATS[kind].includes(clean(input.format, 12).toLowerCase()) || !/^[a-f0-9]{64}$/.test(sha256) || !Number.isSafeInteger(bytes) || bytes <= 0) throw assetError('CANVAS_ASSET_METADATA_INVALID', '素材完整性信息无效', 422);
+    if (bytes > maxAllowedBytes) throw assetError('CANVAS_ASSET_TOO_LARGE', '素材超过允许大小（当前类型上限 ' + Math.floor(maxAllowedBytes / (1024 * 1024)) + ' MB）', 413);
     return withWriteLock(async () => {
       const assets = await readAll();
       const existing = assets.find(item => item.ownerId === ownerId && item.projectId === projectId && item.projectKind === projectKind && item.kind === kind && item.sha256 === sha256 && item.status === 'ready');

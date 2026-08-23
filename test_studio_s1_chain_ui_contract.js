@@ -8,7 +8,7 @@ const root = __dirname;
 const html = fs.readFileSync(path.join(root, 'studio', 'index.html'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'studio', 'assets', 's1-chain-ui.js'), 'utf8');
 
-assert.match(html, /assets\/s1-chain-ui\.js\?v=20260818-yunwu-image2-catalog-r1/);
+assert.match(html, /assets\/s1-chain-ui\.js\?v=20260824-generation-authorize-r1/);
 assert.match(source, /\/api\/canvas\/documents\//);
 assert.match(source, /\/api\/projects\//);
 assert.match(source, /step01Projection/);
@@ -113,5 +113,9 @@ assert.match(source, /data-s2-authorize/);
 assert.match(source, /授权并生成/);
 assert.match(source, /confirmProviderSpend:true/);
 assert.match(source, /canvas\/jobs\/.*\/authorize/);
+assert.match(source, /data-s3-authorize/);
+assert.match(source, /restorePendingJobs/);
+assert.match(source, /watchJob/);
+assert.doesNotMatch(source, /Date\.now\(\)\}, body:JSON\.stringify\(\{projectKind/);
 
 console.log(JSON.stringify({ok:true,verified:['Studio loads the S1 control surface','S1 ports render persisted source and evidence bindings','revision protection is sent on creation','Step01 uses the source-only server route','Image2 requires explicit provider-spend authorization before submitting a paid canvas provider job']}));

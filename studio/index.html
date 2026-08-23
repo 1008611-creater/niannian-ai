@@ -84,16 +84,15 @@
     <script src="./assets/legacy-canvas-groups-migration-r1.js?v=20260818-legacy-canvas-groups-r1"></script>
     <script src="./assets/studio-route-boot.js?v=20260818-storyboard-group-contract-r8"></script>
     <script src="./assets/admin-model-visibility-r1.js?v=20260818-storyboard-group-contract-r8"></script>
-    <script src="./assets/web-runtime-adapter-r4.js?v=20260819-dola-bridge-preflight-r4"></script>
+    <script src="./assets/web-runtime-adapter-r4.js?v=20260820-model-catalog-auth-r1"></script>
    <script src="./assets/asset-library-upload-contract-r2.js?v=20260818-storyboard-group-contract-r8" defer></script>
     <script src="./assets/asset-library-clipboard-upload-r1.js?v=20260818-storyboard-group-contract-r8" defer></script>
     <script src="./assets/project-library-management.js?v=20260818-storyboard-group-contract-r8" defer></script>
-    <script src="./assets/s1-chain-ui.js?v=20260818-yunwu-image2-catalog-r1" defer></script>
+    <script src="./assets/s1-chain-ui.js?v=20260824-generation-authorize-r1" defer></script>
     <!-- Keep the assistant panel in the initial module graph. Some browser/service-worker
          combinations reject its deferred dynamic import even when the asset is reachable. -->
-    <script type="module" crossorigin src="./assets/index-M-8MrEH2.js">
-    <script type="module" crossorigin src="./assets/index-CMSKZo4m.js">
-    <script type="module" crossorigin src="./assets/index-Dx86uMkK.js">
+    <script type="module" crossorigin src="./assets/index-M-8MrEH2.js"></script>
+    <!-- 只保留一个 React 入口：多个入口会在同一 #root 上重复挂载，导致渲染互相覆盖与三倍请求。 -->
     <link rel="modulepreload" crossorigin href="./assets/runtime-vendor-BwexXt4y.js">
     <link rel="modulepreload" crossorigin href="./assets/react-vendor-CRt0dbXk.js">
     <link rel="modulepreload" crossorigin href="./assets/ui-vendor-pE9hUZy7.js">
@@ -106,6 +105,6 @@
       <div id="nomi-boot-shell" aria-label="念念 AI 加载中">
         <div id="nomi-boot-spinner"></div>
       </div>
-    </div>
+    </div>
   </body>
   </html>
