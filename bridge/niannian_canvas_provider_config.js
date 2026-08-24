@@ -21,12 +21,20 @@ function isDolaApiUrl(value) {
 }
 
 function readCanvasProviderConfig(env = process.env) {
-  const provider = 'yunwu-agent-vault';
+  const provider = 'openlux';
   const credentialConfigured = isConfigured(env.RUNNINGHUB_API_KEY);
   const baseUrl = String(env.RUNNINGHUB_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/+$/, '') || DEFAULT_BASE_URL;
   const baseUrlValid = /^https:\/\//.test(baseUrl);
+
+  // OpenLux (gpt-image-2-c) is the current image2 channel.
+  const openluxBaseUrl = String(env.OPENLUX_BASE_URL || 'https://api.openlux.ai').trim().replace(/\/+$/, '') || 'https://api.openlux.ai';
+  const openluxApiKey = String(env.OPENLUX_API_KEY || '').trim();
+  const openluxSubmitEnabled = isConfigured(openluxApiKey) && isOn(env.NIANNIAN_CANVAS_OPENLUX_SUBMIT);
+
+  // Legacy yunwu channel (kept for compatibility but disabled unless explicitly configured).
   const yunwuSubmitEnabled = isConfigured(env.AGENT_VAULT_ADDR) && isConfigured(env.AGENT_VAULT_VAULT) && isConfigured(env.AGENT_VAULT_TOKEN) && isConfigured(env.HTTPS_PROXY || env.https_proxy) && isOn(env.NIANNIAN_CANVAS_YUNWU_SUBMIT);
   const imageChannelEnabled = Object.freeze({
+    [CHANNELS['openlux-gpt-image-2-c'].id]: openluxSubmitEnabled,
     [CHANNELS['yunwu-gpt-image-2-c'].id]: yunwuSubmitEnabled,
     [CHANNELS['yunwu-gpt-image-2-c-edit'].id]: yunwuSubmitEnabled
   });
@@ -49,11 +57,14 @@ function readCanvasProviderConfig(env = process.env) {
     baseUrl,
     baseUrlValid,
     credentialConfigured,
-    imageSubmitEnabled: yunwuSubmitEnabled,
+    imageSubmitEnabled: openluxSubmitEnabled,
     imageChannelEnabled,
     // The edit route remains an internal adapter detail. The browser receives
     // one Image2 model with a reference-image mode and shared controls.
-    imageChannels: Object.freeze([publicUnifiedImage2Channel(yunwuSubmitEnabled)]),
+    imageChannels: Object.freeze([publicUnifiedImage2Channel(openluxSubmitEnabled)]),
+    openluxSubmitEnabled,
+    openluxBaseUrl,
+    openluxApiKeyConfigured: openluxApiKey.length > 0,
     yunwuSubmitEnabled,
     h3CredentialConfigured,
     videoSubmitEnabled,
@@ -97,7 +108,7 @@ function publicCanvasModelCatalog(env = process.env) {
         id: channel.id,
         label: channel.label,
         kind: 'image',
-        providerLabel: '云雾',
+        providerLabel: 'OpenLux',
         enabled: channel.submitEnabled === true,
         resolutions: channel.resolutions,
         aspectRatios: channel.aspectRatios,
@@ -105,7 +116,7 @@ function publicCanvasModelCatalog(env = process.env) {
         outputSizesByAspectRatio: channel.outputSizesByAspectRatio || {},
         imageOptions: {
           aspectRatioOptions: channel.catalogAspectRatios || channel.aspectRatios.map(value => ({value, label: value})),
-          imageSizeOptions: channel.catalogImageSizeOptions || Object.entries(channel.outputSizesByAspectRatio?.['4k'] || {}).map(([ratio, value]) => ({value, label: `${value}（${ratio}）`, aspectRatio: ratio})),
+          imageSizeOptions: channel.catalogImageSizeOptions || Object.entries(channel.outputSizesByAspectRatio?.['1k'] || {}).map(([ratio, value]) => ({value, label: `${value}（${ratio}）`, aspectRatio: ratio})),
           resolutionOptions: channel.catalogResolutions || channel.resolutions.map(value => ({value, label: value.toUpperCase()})),
           defaultAspectRatio: channel.defaultAspectRatio,
           defaultImageSize: channel.defaultImageSize,
@@ -166,12 +177,7 @@ function publicCanvasModelCatalog(env = process.env) {
           resolutionOptions: ['720p'],
           aspectRatioOptions: ['9:16', '16:9', '1:1', '4:3', '3:4'],
           defaultResolution: '720p',
-          defaultAspectRatio: '9:16',
-          controls: [
-            {key: 'duration_seconds', label: '时长', binding: 'durationSeconds', optionSource: 'durationOptions'},
-            {key: 'aspect_ratio', label: '比例', binding: 'size', optionSource: 'sizeOptions'},
-            {key: 'resolution', label: '清晰度', binding: 'resolution', optionSource: 'resolutionOptions'}
-          ]
+          defaultAspectRatio: '9:16'
         },
         meta: {archetypeId: 'seedance-2'}
       }
