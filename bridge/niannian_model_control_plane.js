@@ -89,8 +89,11 @@ function publicCatalog(models, providers, tenantId, allowedModelIds = []) {
       priceCredits: Number(item.priceCredits),
       resolutions: item.resolutions || [],
       aspectRatios: item.aspectRatios || [],
-      // Video controls are part of the model contract. Omitting them made the
-      // canvas fall back to H3's 4-15 second duration list for Dola.
+      imageOptions: item.kind === 'image' && item.imageOptions ? JSON.parse(JSON.stringify(item.imageOptions)) : undefined,
+      supportsReferenceImages: item.kind === 'image' ? item.supportsReferenceImages === true : undefined,
+      supportsTextToImage: item.kind === 'image' ? item.supportsTextToImage === true : undefined,
+      supportsImageToImage: item.kind === 'image' ? item.supportsImageToImage === true : undefined,
+      priceCreditsByMode: item.kind === 'image' ? (item.priceCreditsByMode || {}) : undefined,
       videoOptions: item.kind === 'video' && item.videoOptions ? JSON.parse(JSON.stringify(item.videoOptions)) : undefined,
       meta: item.meta ? JSON.parse(JSON.stringify(item.meta)) : undefined,
       outputSizes: Object.entries(item.outputSizesByAspectRatio || {}).reduce((sizes, [resolution, ratios]) => {
@@ -172,23 +175,41 @@ function createModelControlPlane(options = {}) {
       if (!Array.isArray(config.tenantPlans)) { config.tenantPlans = []; changed = true; }
       const provider = config.providers.find(item => item.id === 'yunwu-agent-vault');
       if (!provider) { config.providers.push({id: 'yunwu-agent-vault', label: '云雾', kind: 'image', enabled: false, secretRef: 'agent-vault://yunwu/image2', baseUrl: '', updatedAt: new Date().toISOString()}); changed = true; }
+      const openluxProvider = config.providers.find(item => item.id === 'openlux');
+      if (!openluxProvider) { config.providers.push({id: 'openlux', label: 'OpenLux', kind: 'image', enabled: true, secretRef: 'env://OPENLUX_API_KEY', baseUrl: 'https://api.openlux.ai', updatedAt: new Date().toISOString()}); changed = true; }
+      else if (openluxProvider.enabled !== true || openluxProvider.baseUrl !== 'https://api.openlux.ai') { openluxProvider.enabled = true; openluxProvider.baseUrl = 'https://api.openlux.ai'; changed = true; }
       const h3Provider = config.providers.find(item => item.id === 'runninghub-consumer');
       if (!h3Provider) { config.providers.push({id: 'runninghub-consumer', label: 'RunningHub', kind: 'video', enabled: false, secretRef: 'agent-vault://runninghub/h3', baseUrl: '', updatedAt: new Date().toISOString()}); changed = true; }
       const dolaProvider = config.providers.find(item => item.id === 'dola-desktop-api');
       if (!dolaProvider) { config.providers.push({id: 'dola-desktop-api', label: 'Dola', kind: 'video', enabled: false, secretRef: 'env://NIANNIAN_DOLA_API_KEY', baseUrl: '', updatedAt: new Date().toISOString()}); changed = true; }
       const compilerProvider = config.providers.find(item => item.id === 'mcgrox-server');
       if (!compilerProvider) { config.providers.push({id: 'mcgrox-server', label: 'MCGrox 编排服务', kind: 'text', enabled: false, secretRef: 'agent-vault://mcgrox/compiler', baseUrl: '', updatedAt: new Date().toISOString()}); changed = true; }
-      const publicImage = publicUnifiedImage2Channel(CHANNELS['yunwu-gpt-image-2-c']);
+      const publicImage = publicUnifiedImage2Channel(CHANNELS['openlux-gpt-image-2-c']);
       const defaults = [
-        {id: 'yunwu-gpt-image-2-c', label: '云雾 Image2', kind: 'image', providerId: 'yunwu-agent-vault', providerLabel: '云雾', priceCredits: 10, priceCreditsByMode: publicImage.priceCreditsByMode, imageOptions: {supportsReferenceImages:true, supportsTextToImage:true, supportsImageToImage:true, modes:publicImage.modes, aspectRatioOptions:publicImage.catalogAspectRatios, imageSizeOptions:publicImage.catalogImageSizeOptions, resolutionOptions:publicImage.catalogResolutions, defaultAspectRatio:publicImage.defaultAspectRatio, defaultImageSize:publicImage.defaultImageSize, defaultResolution:'4k'}, resolutions: [...publicImage.resolutions], aspectRatios: [...publicImage.aspectRatios], outputSizes: {...publicImage.outputSizes}, outputSizesByAspectRatio: JSON.parse(JSON.stringify(publicImage.outputSizesByAspectRatio)), supportsReferenceImages:true, supportsTextToImage:true, supportsImageToImage:true},
+        {id: 'openlux-gpt-image-2-c', label: 'OpenLux Image2', kind: 'image', providerId: 'openlux', providerLabel: 'OpenLux', priceCredits: 10, priceCreditsByMode: publicImage.priceCreditsByMode, imageOptions: {supportsReferenceImages:true, supportsTextToImage:true, supportsImageToImage:true, modes:publicImage.modes, aspectRatioOptions:publicImage.catalogAspectRatios, imageSizeOptions:publicImage.catalogImageSizeOptions, resolutionOptions:publicImage.catalogResolutions, defaultAspectRatio:publicImage.defaultAspectRatio, defaultImageSize:publicImage.defaultImageSize, defaultResolution:'1k'}, resolutions: [...publicImage.resolutions], aspectRatios: [...publicImage.aspectRatios], outputSizes: {...publicImage.outputSizes}, outputSizesByAspectRatio: JSON.parse(JSON.stringify(publicImage.outputSizesByAspectRatio)), supportsReferenceImages:true, supportsTextToImage:true, supportsImageToImage:true, enabled:true},
+        {id: 'yunwu-gpt-image-2-c', label: '云雾 Image2', kind: 'image', providerId: 'yunwu-agent-vault', providerLabel: '云雾', priceCredits: 10, priceCreditsByMode: publicImage.priceCreditsByMode, imageOptions: {supportsReferenceImages:true, supportsTextToImage:true, supportsImageToImage:true, modes:publicImage.modes, aspectRatioOptions:publicImage.catalogAspectRatios, imageSizeOptions:publicImage.catalogImageSizeOptions, resolutionOptions:publicImage.catalogResolutions, defaultAspectRatio:publicImage.defaultAspectRatio, defaultImageSize:publicImage.defaultImageSize, defaultResolution:'1k'}, resolutions: [...publicImage.resolutions], aspectRatios: [...publicImage.aspectRatios], outputSizes: {...publicImage.outputSizes}, outputSizesByAspectRatio: JSON.parse(JSON.stringify(publicImage.outputSizesByAspectRatio)), supportsReferenceImages:true, supportsTextToImage:true, supportsImageToImage:true},
         {id: 'minimax-h3', label: 'H3 生视频', kind: 'video', providerId: 'runninghub-consumer', providerLabel: 'RunningHub', priceCredits: 20, resolutions: ['2k'], aspectRatios: ['9:16', '16:9', '1:1', '4:3', '3:4'], outputSizes: {}, videoOptions: {aspectRatioOptions: ['9:16', '16:9', '1:1', '4:3', '3:4'], resolutionOptions: ['2k'], durationOptions: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], defaultAspectRatio: '9:16', defaultResolution: '2k', defaultDurationSeconds: 5}},
         {id: 'dola-seedance-2-5', label: 'Dola Seedance 2.5（30秒）', kind: 'video', providerId: 'dola-desktop-api', providerLabel: 'Dola', priceCredits: 0, resolutions: ['720p'], aspectRatios: ['9:16', '16:9', '1:1', '4:3', '3:4'], outputSizes: {}, videoOptions: {aspectRatioOptions: ['9:16', '16:9', '1:1', '4:3', '3:4'], resolutionOptions: ['720p'], durationOptions: [30], defaultAspectRatio: '9:16', defaultResolution: '720p', defaultDurationSeconds: 30}},
         {id: 'mcgrox-compiler', label: 'MCGrox 编排模型', kind: 'text', providerId: 'mcgrox-server', providerLabel: 'MCGrox', priceCredits: 1, resolutions: [], aspectRatios: [], outputSizes: {}}
       ];
       for (const item of defaults) {
         const existing = config.models.find(model => model.id === item.id);
-        if (!existing) { config.models.push({...item, tenantId: 'default', enabled: false, updatedAt: new Date().toISOString()}); changed = true; }
-        else if (item.id === 'yunwu-gpt-image-2-c' && JSON.stringify(existing.outputSizesByAspectRatio || {}) !== JSON.stringify(item.outputSizesByAspectRatio)) {
+        if (!existing) { config.models.push({...item, tenantId: 'default', enabled: item.enabled === true, updatedAt: new Date().toISOString()}); changed = true; }
+        else if (item.id === 'openlux-gpt-image-2-c' && (existing.providerId !== 'openlux' || existing.enabled !== true || JSON.stringify(existing.outputSizesByAspectRatio || {}) !== JSON.stringify(item.outputSizesByAspectRatio))) {
+          existing.providerId = item.providerId;
+          existing.providerLabel = item.providerLabel;
+          existing.enabled = true;
+          existing.resolutions = item.resolutions;
+          existing.aspectRatios = item.aspectRatios;
+          existing.outputSizes = item.outputSizes;
+          existing.outputSizesByAspectRatio = item.outputSizesByAspectRatio;
+          existing.imageOptions = item.imageOptions;
+          existing.supportsReferenceImages = true;
+          existing.supportsTextToImage = true;
+          existing.supportsImageToImage = true;
+          changed = true;
+        }
+        else if ((item.id === 'openlux-gpt-image-2-c' || item.id === 'yunwu-gpt-image-2-c') && JSON.stringify(existing.outputSizesByAspectRatio || {}) !== JSON.stringify(item.outputSizesByAspectRatio)) {
           existing.aspectRatios = item.aspectRatios;
           existing.outputSizesByAspectRatio = item.outputSizesByAspectRatio;
           changed = true;

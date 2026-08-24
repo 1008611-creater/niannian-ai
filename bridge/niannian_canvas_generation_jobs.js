@@ -11,9 +11,9 @@ const DOLA_ASPECT_RATIOS = COMMON_VIDEO_ASPECT_RATIOS;
 
 const MODELS = Object.freeze({
   image: Object.freeze({
-    id: 'yunwu-gpt-image-2-c',
-    label: '云雾 Image2 作图',
-    provider: 'yunwu-agent-vault',
+    id: 'openlux-gpt-image-2-c',
+    label: 'OpenLux Image2 作图',
+    provider: 'openlux',
     providerSubmitEnabled: false
   }),
   video: Object.freeze({
@@ -78,8 +78,8 @@ function publicJob(job, options = {}) {
     providerSubmitEnabled,
     inputAssetIds: Array.isArray(job.inputAssetIds) ? job.inputAssetIds : [],
     outputAssetIds: Array.isArray(job.outputAssetIds) ? job.outputAssetIds : [],
-    imageChannel: job.nodeType === 'image' ? (job.imageChannel || 'yunwu-gpt-image-2-c') : null,
-    imageChannelLabel: job.nodeType === 'image' ? (job.imageChannelLabel || '云雾 Image2') : null,
+    imageChannel: job.nodeType === 'image' ? (job.imageChannel || 'openlux-gpt-image-2-c') : null,
+    imageChannelLabel: job.nodeType === 'image' ? (job.imageChannelLabel || 'OpenLux Image2') : null,
     generationMode: job.nodeType === 'image' ? (job.generationMode || (job.inputAssetIds?.length ? 'reference-image-edit' : 'text-to-image')) : null,
     videoChannel: videoChannel?.id || null,
     videoChannelLabel: videoChannel?.label || null,
@@ -119,8 +119,8 @@ function dryRunContract(job, options = {}) {
     providerSubmitEnabled,
     spendRequested: false,
     inputAssetCount: job.inputAssetIds.length,
-    imageChannel: job.nodeType === 'image' ? (job.imageChannel || 'yunwu-gpt-image-2-c') : null,
-    imageChannelLabel: job.nodeType === 'image' ? (job.imageChannelLabel || '云雾 Image2') : null,
+    imageChannel: job.nodeType === 'image' ? (job.imageChannel || 'openlux-gpt-image-2-c') : null,
+    imageChannelLabel: job.nodeType === 'image' ? (job.imageChannelLabel || 'OpenLux Image2') : null,
     generationMode: job.nodeType === 'image' ? (job.generationMode || (job.inputAssetIds?.length ? 'reference-image-edit' : 'text-to-image')) : null,
     videoChannel: videoChannel?.id || null,
     videoChannelLabel: videoChannel?.label || null,
@@ -175,8 +175,8 @@ function createCanvasGenerationJobService(options = {}) {
     const nodeId = clean(input.nodeId, 80);
     const prompt = clean(input.prompt, 4000);
     const inputAssetIds = [...new Set((Array.isArray(input.inputAssetIds) ? input.inputAssetIds : []).map(item => clean(item, 120)).filter(Boolean))].slice(0, 24);
-    const resolution = clean(input.resolution || (nodeType === 'image' ? '4k' : '2k'), 8).toLowerCase();
-    const aspectRatio = clean(input.aspectRatio || input.aspect_ratio || '9:16', 16);
+    const resolution = clean(input.resolution || (nodeType === 'image' ? '1k' : '2k'), 8).toLowerCase();
+    const aspectRatio = clean(input.aspectRatio || input.aspect_ratio || (nodeType === 'image' ? '1:1' : '9:16'), 16);
     const durationSeconds = Number(input.durationSeconds || input.duration_seconds || (nodeType === 'video' ? 5 : 0));
     const videoSpec = nodeType === 'video' ? resolveVideoChannel(input.videoChannel || input.model || 'h3') : null;
     const accountSlot = Number(input.accountSlot || input.account_slot || 1);

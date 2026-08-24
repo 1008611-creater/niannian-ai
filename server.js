@@ -50,6 +50,7 @@ const canvasGenerationJobs = require('./bridge/niannian_canvas_generation_jobs')
 const canvasAssets = require('./bridge/niannian_canvas_assets');
 const canvasImage2RuntimeModule = require('./bridge/niannian_canvas_image2_runtime');
 const yunwuAgentVaultImage2Adapter = require('./bridge/niannian_yunwu_agent_vault_image2_adapter');
+const openluxImage2Adapter = require('./bridge/niannian_openlux_image2_adapter');
 const canvasImage2Channels = require('./bridge/niannian_canvas_image2_channels');
 const canvasH3RuntimeModule = require('./bridge/niannian_canvas_h3_runtime');
 const canvasAnimateRuntimeModule = require('./bridge/niannian_canvas_animate_runtime');
@@ -169,6 +170,7 @@ const canvasImage2Runtime = canvasImage2RuntimeModule.createCanvasImage2Runtime(
   assetService:canvasAssetService,
   enabled:canvasProviderStatus.imageSubmitEnabled,
   adapters:{
+    'openlux': openluxImage2Adapter.createOpenluxImage2Adapter(),
     'yunwu-agent-vault': yunwuAgentVaultImage2Adapter.createYunwuAgentVaultImage2Adapter()
   }
 });
@@ -8449,7 +8451,7 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
         if (/^CAS-/.test(assetId) && !await canvasAssetService.getOwned(user.id, projectId, assetId)) return json(response, 404, {code:'CANVAS_ASSET_NOT_FOUND',error:'画布引用的素材不存在'});
       }
       const requestedImageAspect = nodeType === 'image'
-        ? canvasText(body.aspectRatio || nodeData.aspectRatio || nodeMeta.aspectRatio || nodeMeta.aspect_ratio || (requestedModel === 'yunwu-gpt-image-2-c-edit' ? '16:9' : ''), 16)
+        ? canvasText(body.aspectRatio || nodeData.aspectRatio || nodeMeta.aspectRatio || nodeMeta.aspect_ratio || (requestedModel === 'yunwu-gpt-image-2-c-edit' ? '16:9' : '1:1'), 16)
         : '';
       const imageHasReferences = nodeType === 'image' && inputAssetIds.length > 0;
       const created = await canvasGenerationJobService.create({
@@ -8459,7 +8461,7 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
         projectKind:owned.projectKind,
         nodeId,
         nodeType,
-        model:requestedModel || (nodeType === 'image' ? 'yunwu-gpt-image-2-c' : 'h3'),
+        model:requestedModel || (nodeType === 'image' ? 'openlux-gpt-image-2-c' : 'h3'),
         prompt:canvasText(compiledPrompt?.prompt || body.prompt || node.data?.prompt, 4000),
         inputAssetIds,
         // Preserve the user's selected spec so the Image2 contract can report
@@ -8546,7 +8548,7 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
       }
       const catalog = await modelControlPlane.publicCatalogForTenant(modelControlPlaneModule.tenantForUser(user));
       const requestedCatalogModelId = job.nodeType === 'image'
-        ? 'yunwu-gpt-image-2-c'
+        ? 'openlux-gpt-image-2-c'
         : (job.videoChannel === 'h3' ? 'minimax-h3' : job.videoChannel || job.model);
       const catalogModel = catalog.models.find(item => item.id === requestedCatalogModelId);
       if (!catalogModel) return json(response, 409, {code:'CANVAS_MODEL_NOT_ENABLED',error:'当前模型尚未由管理员启用'});
@@ -8589,7 +8591,7 @@ async function handleCanvasGenerationApi(request, response, pathname, user) {
 }
 
 function isCanvasModelRuntimeReady(model) {
-  if (model.kind === 'image') return model.id.startsWith('yunwu-gpt-image-2-c') && canvasImage2Runtime.enabled;
+  if (model.kind === 'image') return (model.id.startsWith('openlux-gpt-image-2-c') || model.id.startsWith('yunwu-gpt-image-2-c')) && canvasImage2Runtime.enabled;
   if (model.kind !== 'video') return false;
   if (canvasVideoChannels.isDolaVideoChannel(model.id)) return canvasDolaRuntime.enabled;
   if (canvasVideoChannels.isDoubaoVideoChannel(model.id)) return canvasDoubaoRuntime.enabled;
