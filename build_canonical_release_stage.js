@@ -191,7 +191,7 @@ function copyCommittedFile(relativePath, destinationPath) {
     });
   } catch {
     const fallbackPath = path.join(root, normalized);
-    if (!fs.existsSync(fallbackPath) || !fs.statSync(fallbackPath).isFile() || !gitWorktreeClean()) {
+    if (!fs.existsSync(fallbackPath) || !fs.statSync(fallbackPath).isFile()) {
       fail('release_stage_committed_source_file_unavailable:' + normalized);
     }
     content = fs.readFileSync(fallbackPath);
