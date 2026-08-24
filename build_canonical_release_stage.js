@@ -181,23 +181,12 @@ function committedSourcePaths() {
 
 function copyCommittedFile(relativePath, destinationPath) {
   const normalized = normalizeRelativePath(relativePath, 'release_stage_committed_source_path_invalid');
-  let content;
-  try {
-    content = childProcess.execFileSync('git', ['show', `HEAD:${normalized}`], {
-      cwd:root,
-      encoding:null,
-      maxBuffer:256 * 1024 * 1024,
-      stdio:['ignore', 'pipe', 'ignore']
-    });
-  } catch {
-    const fallbackPath = path.join(root, normalized);
-    if (!fs.existsSync(fallbackPath) || !fs.statSync(fallbackPath).isFile()) {
-      fail('release_stage_committed_source_file_unavailable:' + normalized);
-    }
-    content = fs.readFileSync(fallbackPath);
+  const sourcePath = path.join(root, normalized);
+  if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
+    fail('release_stage_committed_source_file_unavailable:' + normalized);
   }
   fs.mkdirSync(path.dirname(destinationPath), { recursive:true });
-  fs.writeFileSync(destinationPath, content, { flag:'wx' });
+  fs.copyFileSync(sourcePath, destinationPath, fs.constants.COPYFILE_EXCL);
 }
 
 function normalizeCandidateContract(candidate = {}) {
