@@ -190,7 +190,11 @@ function copyCommittedFile(relativePath, destinationPath) {
       stdio:['ignore', 'pipe', 'ignore']
     });
   } catch {
-    fail('release_stage_committed_source_file_unavailable:' + normalized);
+    const fallbackPath = path.join(root, normalized);
+    if (!fs.existsSync(fallbackPath) || !fs.statSync(fallbackPath).isFile() || !gitWorktreeClean()) {
+      fail('release_stage_committed_source_file_unavailable:' + normalized);
+    }
+    content = fs.readFileSync(fallbackPath);
   }
   fs.mkdirSync(path.dirname(destinationPath), { recursive:true });
   fs.writeFileSync(destinationPath, content, { flag:'wx' });
