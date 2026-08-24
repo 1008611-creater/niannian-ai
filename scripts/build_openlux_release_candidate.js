@@ -6,7 +6,7 @@ const { buildStage } = require('../build_canonical_release_stage');
 const output = path.resolve(process.argv[2] || path.join(os.tmpdir(), 'niannian-openlux-release-candidate'));
 if (fs.existsSync(output)) throw new Error('candidate_output_already_exists');
 const result = buildStage(output, {
-  release_id: 'niannian-openlux-image2-c54d975',
+  release_id: 'niannian-openlux-image2-f03ae99',
   parent_release_id: 'niannian-web-20260804-workbench-clarity-r2-short-drama-modal-fix1',
   scope: 'Migrate canvas Image2 text-to-image and reference-image editing from Yunwu to OpenLux; no production activation performed.',
   allowed_files: [
