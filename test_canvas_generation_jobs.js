@@ -17,32 +17,32 @@ async function run() {
     assert.equal(first.created, true);
     assert.equal(first.job.status, 'awaiting_authorization');
     assert.equal(first.job.providerSubmitEnabled, false);
-    assert.equal(first.job.imageChannel, 'yunwu-gpt-image-2-c-edit');
+    assert.equal(first.job.imageChannel, 'openlux-gpt-image-2-c');
     assert.equal(first.job.generationMode, 'reference-image-edit');
-    assert.equal(first.job.outputSize, '3840x2160');
-    const yunwu4k = await service.create({...request, inputAssetIds:[], model:'yunwu-gpt-image-2-c', resolution:'4k', aspectRatio:'9:16', idempotencyKey:'canvas-job-yunwu-4k'});
-    assert.equal(yunwu4k.job.imageChannel, 'yunwu-gpt-image-2-c');
-    assert.equal(yunwu4k.job.aspectRatio, '9:16');
-    assert.equal(yunwu4k.job.outputSize, '2160x3840');
+    assert.equal(first.job.outputSize, '1536x1024');
+    const openlux1k = await service.create({...request, inputAssetIds:[], model:'openlux-gpt-image-2-c', resolution:'1k', aspectRatio:'9:16', idempotencyKey:'canvas-job-openlux-1k'});
+    assert.equal(openlux1k.job.imageChannel, 'openlux-gpt-image-2-c');
+    assert.equal(openlux1k.job.aspectRatio, '9:16');
+    assert.equal(openlux1k.job.outputSize, '1024x1536');
+    const openluxEdit = await service.create({...request, model:'openlux-gpt-image-2-c', resolution:'1k', aspectRatio:'16:9', idempotencyKey:'canvas-job-openlux-edit'});
+    assert.equal(openluxEdit.job.imageChannel, 'openlux-gpt-image-2-c');
+    assert.equal(openluxEdit.job.outputSize, '1536x1024');
     await assert.rejects(
-      () => service.create({...request, inputAssetIds:[], model:'yunwu-gpt-image-2-c', resolution:'4k', aspectRatio:'3:4', idempotencyKey:'canvas-job-yunwu-3-4'}),
+      () => service.create({...request, inputAssetIds:[], model:'openlux-gpt-image-2-c', resolution:'1k', aspectRatio:'4:3', idempotencyKey:'canvas-job-openlux-4-3'}),
       error => error.code === 'CANVAS_IMAGE2_ASPECT_RATIO_UNSUPPORTED'
     );
-    const explicitOutputSize = await service.create({...request, inputAssetIds:[], model:'yunwu-gpt-image-2-c', resolution:'4k', aspectRatio:'9:16', outputSize:'2160x3840', idempotencyKey:'canvas-job-yunwu-output-size'});
-    assert.equal(explicitOutputSize.job.outputSize, '2160x3840');
+    const explicitOutputSize = await service.create({...request, inputAssetIds:[], model:'openlux-gpt-image-2-c', resolution:'1k', aspectRatio:'9:16', outputSize:'1024x1536', idempotencyKey:'canvas-job-openlux-output-size'});
+    assert.equal(explicitOutputSize.job.outputSize, '1024x1536');
     await assert.rejects(
-      () => service.create({...request, inputAssetIds:[], model:'yunwu-gpt-image-2-c', resolution:'4k', aspectRatio:'9:16', outputSize:'1024x1024', idempotencyKey:'canvas-job-yunwu-output-size-invalid'}),
+      () => service.create({...request, inputAssetIds:[], model:'openlux-gpt-image-2-c', resolution:'1k', aspectRatio:'9:16', outputSize:'3840x2160', idempotencyKey:'canvas-job-openlux-output-size-invalid'}),
       error => error.code === 'CANVAS_IMAGE2_OUTPUT_SIZE_UNSUPPORTED'
     );
     await assert.rejects(
-      () => service.create({...request, inputAssetIds:[], model:'yunwu-gpt-image-2-c', resolution:'4k', aspectRatio:'3:4', outputSize:'2160x3840', idempotencyKey:'canvas-job-yunwu-3-4-invalid'}),
+      () => service.create({...request, inputAssetIds:[], model:'openlux-gpt-image-2-c', resolution:'1k', aspectRatio:'4:3', outputSize:'1024x1024', idempotencyKey:'canvas-job-openlux-4-3-invalid'}),
       error => error.code === 'CANVAS_IMAGE2_ASPECT_RATIO_UNSUPPORTED'
     );
-    const yunwuEdit = await service.create({...request, model:'yunwu-gpt-image-2-c', resolution:'4k', aspectRatio:'16:9', idempotencyKey:'canvas-job-yunwu-edit'});
-    assert.equal(yunwuEdit.job.imageChannel, 'yunwu-gpt-image-2-c-edit');
-    assert.equal(yunwuEdit.job.outputSize, '3840x2160');
     await assert.rejects(
-      () => service.create({...request, model:'yunfei-gpt-image-2-1k', resolution:'1k', aspectRatio:'1:1', idempotencyKey:'canvas-job-yunfei-invalid'}),
+      () => service.create({...request, model:'yunfei-gpt-image-2-1k', resolution:'1k', aspectRatio:'1:1', inputAssetIds:[], idempotencyKey:'canvas-job-yunfei-invalid'}),
       error => error.code === 'CANVAS_IMAGE2_CHANNEL_INVALID'
     );
 
@@ -103,10 +103,10 @@ async function run() {
     assert.equal(Object.hasOwn(publicJob, 'idempotencyKey'), false);
     assert.equal(Object.hasOwn(publicJob, 'requestHash'), false);
     const dryRun = service.dryRunContract(first.job);
-    assert.equal(dryRun.model, 'yunwu-gpt-image-2-c');
+    assert.equal(dryRun.model, 'openlux-gpt-image-2-c');
     assert.equal(dryRun.spendRequested, false);
     assert.equal(dryRun.providerSubmitEnabled, false);
-    assert.equal(dryRun.imageChannel, 'yunwu-gpt-image-2-c-edit');
+    assert.equal(dryRun.imageChannel, 'openlux-gpt-image-2-c');
     console.log('CANVAS_GENERATION_JOBS_CONTRACT_OK');
   } finally {
     await fsp.rm(directory, {recursive:true, force:true});

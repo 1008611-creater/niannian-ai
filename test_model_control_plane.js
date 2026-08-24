@@ -12,15 +12,15 @@ async function run() {
   const admin = {id:'USR-ADMIN', role:'admin', tenantId:'tenant-a'};
   const user = {id:'USR-1', tenantId:'tenant-a'};
   const other = {id:'USR-2', tenantId:'tenant-b'};
-  await plane.upsertProvider(admin, {id:'yunwu-agent-vault', label:'云雾', kind:'image', enabled:true, baseUrl:'https://private.example', secretRef:'agent-vault://yunwu/image2'});
-  await plane.upsertModel(admin, {id:'yunwu-gpt-image-2-c', label:'Image2', kind:'image', providerId:'yunwu-agent-vault', providerLabel:'云雾', tenantId:'tenant-a', enabled:true, priceCredits:10, resolutions:['4k'], aspectRatios:['9:16'], outputSizes:{'4k':'2160x3840'}});
+  await plane.upsertProvider(admin, {id:'openlux', label:'OpenLux', kind:'image', enabled:true, baseUrl:'https://api.openlux.ai', secretRef:'env://OPENLUX_API_KEY'});
+  await plane.upsertModel(admin, {id:'openlux-gpt-image-2-c', label:'OpenLux Image2', kind:'image', providerId:'openlux', providerLabel:'OpenLux', tenantId:'tenant-a', enabled:true, priceCredits:10, resolutions:['1k'], aspectRatios:['1:1','16:9','9:16'], outputSizes:{'1k':'1024x1024'}, imageOptions:{aspectRatioOptions:[{value:'1:1'}]}, supportsReferenceImages:true, supportsTextToImage:true, supportsImageToImage:true});
   await plane.creditAdmin(admin, {tenantId:'tenant-a', userId:user.id, amount:20, reason:'test grant'});
   const catalog = await plane.publicCatalogForTenant('tenant-a');
   assert.equal(catalog.models[0].priceCredits, 10);
-  assert.equal(catalog.models[0].providerKey, 'yunwu-agent-vault');
+  assert.equal(catalog.models[0].providerKey, 'openlux');
   assert.equal(catalog.models.some(model => model.id === 'yunwu-gpt-image-2-c-edit'), false);
   assert.deepEqual(catalog.models[0].imageOptions.aspectRatioOptions.map(option => option.value), ['9:16', '16:9', '1:1', '4:3', '3:4']);
-  assert.deepEqual(catalog.models[0].imageOptions.resolutionOptions.map(option => option.value), ['1k', '2k', '4k']);
+  assert.deepEqual(catalog.models[0].resolutions, ['1k']);
   assert.equal(Object.hasOwn(catalog, 'providers'), false);
   assert.equal(JSON.stringify(catalog).includes('private.example'), false);
   assert.equal(JSON.stringify(catalog).includes('agent-vault://'), false);
@@ -50,17 +50,17 @@ async function run() {
   const legacyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'niannian-model-control-legacy-'));
   await fs.writeFile(path.join(legacyRoot, 'config.json'), JSON.stringify({
     schemaVersion: 'niannian.model_control_config.v2',
-    providers: [{id:'yunwu-agent-vault', label:'云雾', kind:'image', enabled:true}],
+    providers: [{id:'openlux', label:'OpenLux', kind:'image', enabled:true}],
     models: [
-      {id:'yunwu-gpt-image-2-c', label:'旧 Image2', kind:'image', providerId:'yunwu-agent-vault', providerLabel:'云雾', tenantId:'tenant-a', enabled:true, imageOptions:{aspectRatioOptions:[{value:'9:16'}]}},
-      {id:'yunwu-gpt-image-2-c-edit', label:'云雾 Image2 图改图 4K', kind:'image', providerId:'yunwu-agent-vault', tenantId:'tenant-a', enabled:true}
+      {id:'openlux-gpt-image-2-c', label:'旧 OpenLux Image2', kind:'image', providerId:'openlux', providerLabel:'OpenLux', tenantId:'tenant-a', enabled:true, imageOptions:{aspectRatioOptions:[{value:'1:1'}]}},
+      {id:'yunwu-gpt-image-2-c', label:'旧云雾 Image2', kind:'image', providerId:'yunwu-agent-vault', tenantId:'tenant-a', enabled:true}
     ],
     plans: [],
     tenantPlans: []
   }) + '\n');
   const legacyPlane = createModelControlPlane({configPath:path.join(legacyRoot, 'config.json'), ledgerPath:path.join(legacyRoot, 'ledger.json')});
   const migratedCatalog = await legacyPlane.publicCatalogForTenant('tenant-a');
-  assert.deepEqual(migratedCatalog.models.map(model => model.id), ['yunwu-gpt-image-2-c']);
+  assert.deepEqual(migratedCatalog.models.map(model => model.id), ['openlux-gpt-image-2-c']);
   assert.equal(migratedCatalog.models[0].imageOptions.aspectRatioOptions.length, 5);
   await fs.rm(legacyRoot, {recursive:true, force:true});
 

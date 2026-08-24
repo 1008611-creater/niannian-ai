@@ -3,7 +3,7 @@ const {readCanvasProviderConfig, publicCanvasProviderStatus, publicCanvasModelCa
 
 function run() {
   const missing = readCanvasProviderConfig({});
-  assert.equal(missing.provider, 'yunwu-agent-vault');
+  assert.equal(missing.provider, 'openlux');
   assert.equal(missing.credentialConfigured, false);
   assert.equal(missing.imageSubmitEnabled, false);
   assert.equal(missing.videoSubmitEnabled, false);
@@ -11,7 +11,8 @@ function run() {
   assert.equal(missing.dolaSubmitEnabled, false);
 
   const configured = readCanvasProviderConfig({
-    AGENT_VAULT_ADDR:'http://127.0.0.1:14321', AGENT_VAULT_VAULT:'niannian-production', AGENT_VAULT_TOKEN:'protected-test-token', HTTPS_PROXY:'http://127.0.0.1:14322', NIANNIAN_CANVAS_YUNWU_SUBMIT:'on',
+    OPENLUX_BASE_URL:'https://api.openlux.ai', OPENLUX_API_KEY:'configured-openlux-key-only-in-test', NIANNIAN_CANVAS_OPENLUX_SUBMIT:'on',
+    AGENT_VAULT_ADDR:'http://127.0.0.1:14321', AGENT_VAULT_VAULT:'niannian-production', AGENT_VAULT_TOKEN:'protected-test-token', HTTPS_PROXY:'http://127.0.0.1:14322', NIANNIAN_CANVAS_YUNWU_SUBMIT:'off',
     NIANNIAN_CANVAS_H3_SUBMIT: 'on',
     NOMI_RUNNINGHUB_H3_API_KEY:'configured-consumer-key-only-in-test',
     NIANNIAN_RUNNINGHUB_ANIMATE_API_KEY:'configured-consumer-key-only-in-test',
@@ -23,6 +24,8 @@ function run() {
   assert.equal(configured.baseUrl, 'https://www.runninghub.cn');
   assert.equal(configured.credentialConfigured, false);
   assert.equal(configured.imageSubmitEnabled, true);
+  assert.equal(configured.openluxSubmitEnabled, true);
+  assert.equal(configured.openluxApiKeyConfigured, true);
   assert.equal(configured.videoSubmitEnabled, true);
   assert.equal(configured.animateCredentialConfigured, true);
   assert.equal(configured.animateSubmitEnabled, true);
@@ -38,13 +41,16 @@ function run() {
   assert.equal(noConsumerFallback.dolaSubmitEnabled, false);
 
   const publicStatus = publicCanvasProviderStatus({
-    AGENT_VAULT_ADDR:'http://127.0.0.1:14321', AGENT_VAULT_VAULT:'niannian-production', AGENT_VAULT_TOKEN:'protected-test-token', HTTPS_PROXY:'http://127.0.0.1:14322', NIANNIAN_CANVAS_YUNWU_SUBMIT:'on',
+    OPENLUX_BASE_URL:'https://api.openlux.ai', OPENLUX_API_KEY:'configured-openlux-key-only-in-test', NIANNIAN_CANVAS_OPENLUX_SUBMIT:'on',
+    NIANNIAN_CANVAS_YUNWU_SUBMIT:'off',
     NIANNIAN_CANVAS_H3_SUBMIT: 'off'
   });
-  assert.equal(publicStatus.provider, 'yunwu-agent-vault');
+  assert.equal(publicStatus.provider, 'openlux');
   assert.equal(publicStatus.baseUrl, 'https://www.runninghub.cn');
   assert.equal(publicStatus.credentialConfigured, false);
   assert.equal(publicStatus.imageSubmitEnabled, true);
+  assert.equal(publicStatus.imageChannels[0].id, 'openlux-gpt-image-2-c');
+  assert.equal(publicStatus.imageChannels[0].label, 'OpenLux Image2');
   assert.equal(publicStatus.videoSubmitEnabled, false);
   assert.equal(publicStatus.animateSubmitEnabled, false);
   assert.equal(publicStatus.dolaSubmitEnabled, false);
@@ -53,13 +59,13 @@ function run() {
   assert.equal(Object.hasOwn(publicStatus, 'dolaApiUrl'), false);
   assert.equal(Object.hasOwn(publicStatus, 'dolaCredentialConfigured'), false);
   assert.deepEqual(publicStatus.imageChannels.map(channel => [channel.id, channel.label, channel.submitEnabled, channel.aspectRatios, channel.outputSizes]), [
-    ['yunwu-gpt-image-2-c', '云雾 Image2', true, ['9:16', '16:9'], {'4k':'2160x3840','4k · 9:16':'2160x3840','4k · 16:9':'3840x2160'}]
+    ['openlux-gpt-image-2-c', 'OpenLux Image2', true, ['1:1', '16:9', '9:16'], {'1k':'1024x1024','1k · 1:1':'1024x1024','1k · 16:9':'1536x1024','1k · 9:16':'1024x1536'}]
   ]);
   assert.equal(publicStatus.imageChannels[0].supportsReferenceImages, true);
   assert.deepEqual(publicStatus.imageChannels[0].priceCreditsByMode, {'text-to-image':10,'reference-image-edit':12});
-  const catalog = publicCanvasModelCatalog({AGENT_VAULT_ADDR:'http://127.0.0.1:14321', AGENT_VAULT_VAULT:'niannian-production', AGENT_VAULT_TOKEN:'protected-test-token', HTTPS_PROXY:'http://127.0.0.1:14322', NIANNIAN_CANVAS_YUNWU_SUBMIT:'on'});
-  assert.deepEqual(catalog.models.filter(model => model.kind === 'image').map(model => model.id), ['yunwu-gpt-image-2-c']);
-  assert.equal(catalog.models.find(model => model.id === 'yunwu-gpt-image-2-c').imageOptions.supportsReferenceImages, true);
+  const catalog = publicCanvasModelCatalog({OPENLUX_BASE_URL:'https://api.openlux.ai', OPENLUX_API_KEY:'configured-openlux-key-only-in-test', NIANNIAN_CANVAS_OPENLUX_SUBMIT:'on', NIANNIAN_CANVAS_YUNWU_SUBMIT:'off'});
+  assert.deepEqual(catalog.models.filter(model => model.kind === 'image').map(model => model.id), ['openlux-gpt-image-2-c']);
+  assert.equal(catalog.models.find(model => model.id === 'openlux-gpt-image-2-c').imageOptions.supportsReferenceImages, true);
   const dola = catalog.models.find(model => model.id === 'dola-seedance-2-5');
   assert(dola, 'dola model must be present in public catalog');
   assert.deepEqual(dola.videoOptions.durationOptions, [30]);
