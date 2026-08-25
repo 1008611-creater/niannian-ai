@@ -8247,7 +8247,9 @@ function publicCanvasTextResponse(job) {
 
 function browserCanvasTextStatus() {
   const status = canvasTextRuntimeModule.publicCanvasTextStatus();
-  return {provider:status.provider, model:status.model || null, modelConfigured:status.modelConfigured === true, submitEnabled:status.submitEnabled === true};
+  // credentialConfigured is part of the web runtime adapter contract: the
+  // studio text composer gates its model catalog on all three flags.
+  return {provider:status.provider, model:status.model || null, modelConfigured:status.modelConfigured === true, credentialConfigured:status.credentialConfigured === true, submitEnabled:status.submitEnabled === true};
 }
 
 function scheduleCanvasTextJob({ownerId, projectId, job}) {
