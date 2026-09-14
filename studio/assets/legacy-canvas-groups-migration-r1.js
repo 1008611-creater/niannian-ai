@@ -75,5 +75,7 @@
     }
   }
 
-  migrate().finally(startStudio);
+  // 不再由迁移脚本注入第二个 React 渲染器：入口由 studio/index.html 的单一
+  // <script type="module"> 声明承担，避免两个互不相容的构建同时挂载同一 #root 导致崩溃。
+  migrate();
 }());

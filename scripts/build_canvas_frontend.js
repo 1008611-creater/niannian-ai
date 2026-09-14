@@ -37,6 +37,19 @@ if (!fs.existsSync(dstAssets)) fail('studio/assets 缺失');
 
 // 2. 复制构建产物（覆盖核心 UI；服务端适配文件不在产物中，自然保留）
 console.log('▶ 复制构建产物到 studio/assets...');
+// 2a. 先清理 studio/assets 中残留的旧构建 chunk：白名单 = 当前 index.html 引用的
+//     本地资源（适配器/样式）+ 本次新构建产物；其余一律删除，避免陈旧 chunk 堆积导致加载到旧构建。
+const onlineForClean = fs.readFileSync(path.join(STUDIO, 'index.html'), 'utf8');
+const keepRefs = new Set([...onlineForClean.matchAll(/(?:src|href)="\.\/assets\/([^"]+?)"/g)].map((m) => m[1].split('?')[0]));
+keepRefs.add('tailwind.generated.css');
+const freshNames = new Set(fs.readdirSync(srcAssets));
+let removed = 0;
+for (const f of fs.readdirSync(dstAssets)) {
+  if (keepRefs.has(f) || freshNames.has(f)) continue;
+  fs.rmSync(path.join(dstAssets, f), { force: true });
+  removed += 1;
+}
+if (removed) console.log(`  清理 ${removed} 个陈旧构建 chunk`);
 let copied = 0;
 for (const f of fs.readdirSync(srcAssets)) {
   fs.copyFileSync(path.join(srcAssets, f), path.join(dstAssets, f));
@@ -50,9 +63,11 @@ console.log(`  复制 ${copied} 个产物文件`);
 console.log('▶ 重建 studio/index.html...');
 const online = fs.readFileSync(path.join(STUDIO, 'index.html'), 'utf8');
 const distHtml = fs.readFileSync(path.join(OUT, 'index.html'), 'utf8');
-const coreRefs = [...distHtml.matchAll(/<script type="module"[^>]*assets\/[^"]+[^>]*>|<link rel="modulepreload"[^>]*assets\/[^"]+[^>]*>|<link rel="stylesheet"[^>]*assets\/[^"]+[^>]*>/g)].map((m) => m[0]);
+const coreRefs = [...distHtml.matchAll(/<script type="module"[^>]*assets\/[^"]+[^>]*>\s*<\/script>|<link rel="modulepreload"[^>]*assets\/[^"]+[^>]*>|<link rel="stylesheet"[^>]*assets\/[^"]+[^>]*>/g)].map((m) => m[0]);
 if (!coreRefs.length) fail('未从构建产物 index.html 提取到核心 UI 引用');
-const coreStart = online.indexOf('<link rel="modulepreload"');
+// 核心 UI 引用块从「第一个 <script type="module"> 核心入口」开始（在 modulepreload 之前），
+// 必须从这里截断，否则旧的核心入口脚本会被保留，导致新旧两个 React 入口重复挂载同一 #root。
+const coreStart = online.indexOf('<script type="module"');
 const headEnd = online.indexOf('</head>');
 if (coreStart === -1 || headEnd === -1) fail('线上 index.html 结构不符合预期');
 const rebuilt = online.slice(0, coreStart) + coreRefs.join('\n    ') + '\n  ' + online.slice(headEnd);
@@ -61,6 +76,8 @@ fs.writeFileSync(path.join(STUDIO, 'index.html'), rebuilt, 'utf8');
 // 4. 校验
 const check = fs.readFileSync(path.join(STUDIO, 'index.html'), 'utf8');
 if (!check.includes('web-runtime-adapter')) fail('index.html 丢失服务端适配文件引用（web-runtime-adapter）');
+const coreEntryCount = (check.match(/<script type="module"[^>]*src="\.\/assets\/index-[^"]+\.js"[^>]*>/g) || []).length;
+if (coreEntryCount !== 1) fail('index.html 必须恰好有一个 React 核心入口，当前检测到 ' + coreEntryCount + ' 个（会导致 #root 双挂载）');
 for (const ref of coreRefs) {
   const asset = /assets\/([^"?]+)/.exec(ref);
   if (asset && !fs.existsSync(path.join(STUDIO, 'assets', asset[1]))) fail('index.html 引用的资源缺失：' + asset[1]);

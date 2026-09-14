@@ -920,7 +920,8 @@ async function submitAuth(type) {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "认证失败，请稍后重试");
     modalStatus.textContent = type === "register" ? "账户已创建，正在进入..." : "登录成功，正在进入...";
-    window.setTimeout(() => { window.location.href = "/studio/"; }, 260);
+    // 留在登录所在页面：仅刷新当前页以反映已登录态，不再强制跳转到 /studio/。
+    window.setTimeout(() => { window.location.reload(); }, 260);
   } catch (error) {
     modalStatus.textContent = error instanceof Error ? error.message : "认证失败，请稍后重试";
     modalSubmit.disabled = false;
