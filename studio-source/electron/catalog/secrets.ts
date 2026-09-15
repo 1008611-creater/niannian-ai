@@ -2,8 +2,7 @@
 // docs/plan/2026-06-04-runtime-split-execution.md 第 4 步）。
 //
 // safeStorage 走 OS 钥匙串（macOS Keychain / Windows DPAPI / Linux libsecret）。
-// 不可用时（如无 keyring 的 rootless Linux）回退明文，并给记录打 enc 标记，
-// 供下次读取时懒升级（见 runtime.ts readCatalog）。
+// 生产环境不可用时拒绝新写入，避免 API key 明文落盘；旧明文记录仍可读取并懒升级。
 import { safeStorage } from "electron";
 
 export type ApiKeyRecord = {
@@ -17,19 +16,12 @@ export type ApiKeyRecord = {
   updatedAt: string;
 };
 
-let __safeStorageAvailableCached: boolean | null = null;
-
 export function isSafeStorageAvailable(): boolean {
-  if (__safeStorageAvailableCached !== null) return __safeStorageAvailableCached;
   try {
-    __safeStorageAvailableCached = safeStorage.isEncryptionAvailable();
+    return safeStorage.isEncryptionAvailable();
   } catch {
-    __safeStorageAvailableCached = false;
+    return false;
   }
-  if (!__safeStorageAvailableCached) {
-    console.warn("[catalog] safeStorage unavailable; API keys will be stored as plaintext");
-  }
-  return __safeStorageAvailableCached;
 }
 
 /** Build a fresh ApiKeyRecord from plaintext, encrypting if safeStorage is available. */
@@ -38,7 +30,7 @@ export function makeApiKeyRecordFromPlain(plain: string, vendorKey: string, enab
     const encrypted = safeStorage.encryptString(plain).toString("base64");
     return { vendorKey, apiKey: encrypted, enc: "safeStorage", enabled, createdAt, updatedAt };
   }
-  return { vendorKey, apiKey: plain, enc: "plain", enabled, createdAt, updatedAt };
+  throw new Error("当前系统无法安全保存 API Key，请启用系统凭据存储后重试");
 }
 
 /** Decode an ApiKeyRecord to plaintext. Returns "" if a safeStorage-encoded value can't be decrypted. */

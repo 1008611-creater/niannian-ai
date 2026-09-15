@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// 可控的 safeStorage mock：可用；encrypt/decrypt 互为逆（identity 编码，便于断言往返）；
+const safeStorageState = vi.hoisted(() => ({ available: true }));
+
+// 可控的 safeStorage mock：encrypt/decrypt 互为逆（identity 编码，便于断言往返）；
 // 对哨兵明文 "FAIL" 在解密时抛错，用来覆盖解密失败分支。
 vi.mock("electron", () => ({
   safeStorage: {
-    isEncryptionAvailable: () => true,
+    isEncryptionAvailable: () => safeStorageState.available,
     encryptString: (plain: string) => Buffer.from(plain, "utf8"),
     decryptString: (buf: Buffer) => {
       const s = buf.toString("utf8");
@@ -15,6 +17,10 @@ vi.mock("electron", () => ({
 }));
 
 import { decryptApiKeyRecord, isSafeStorageAvailable, makeApiKeyRecordFromPlain } from "./secrets";
+
+beforeEach(() => {
+  safeStorageState.available = true;
+});
 
 describe("isSafeStorageAvailable", () => {
   it("reports availability from safeStorage", () => {
@@ -31,6 +37,14 @@ describe("makeApiKeyRecordFromPlain + decryptApiKeyRecord round-trip", () => {
     expect(rec.apiKey).not.toBe("sk-secret"); // 不是明文
     expect(rec.apiKey).toBe(Buffer.from("sk-secret", "utf8").toString("base64"));
     expect(decryptApiKeyRecord(rec)).toBe("sk-secret");
+  });
+});
+
+describe("makeApiKeyRecordFromPlain unavailable storage", () => {
+  it("does not return a plaintext record when safeStorage is unavailable", () => {
+    safeStorageState.available = false;
+    expect(() => makeApiKeyRecordFromPlain("sk-secret", "openai", true, "c1", "u1"))
+      .toThrow("无法安全保存 API Key");
   });
 });
 
