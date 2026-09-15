@@ -11,7 +11,7 @@ permissions:
 jobs:
   authority:
     name: Verify canonical main
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 5
     steps:
       - name: Check out complete history
