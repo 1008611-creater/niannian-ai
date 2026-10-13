@@ -1,0 +1,60 @@
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import NomiRouterApp from './NomiRouterApp'
+// 自托管品牌字体（本地优先：不依赖系统是否装 Inter/Fraunces，保证任意机器一致）。
+// 变量字体族名为 'Inter Variable' / 'Fraunces Variable'，已在 nomi-tokens.css 字栈置首。
+import '@fontsource-variable/inter/wght.css'
+import '@fontsource-variable/fraunces/wght.css'
+// Mantine v7 组件样式是独立 CSS，必须显式导入——toast 三合一迁 @mantine/notifications 时漏了这步，
+// 容器没有 position:fixed/z-index，全 App toast 一度渲染在页面流底部肉眼不可见（v0.16.7~v0.17.0）。
+// 只引 toast 用到的三份（Notification 卡片 + 关闭钮 + 通知容器），不引全量 core styles。
+import '@mantine/core/styles/UnstyledButton.css'
+import '@mantine/core/styles/CloseButton.css'
+import '@mantine/core/styles/Notification.css'
+import '@mantine/notifications/styles.css'
+import './styles/index.css'
+import { NomiAppProviders } from './NomiAppProviders'
+import { NomiColorSchemeProvider } from './theme/NomiColorSchemeProvider'
+import { primeNomiColorScheme } from './theme/colorScheme'
+
+// 仅外部浏览器素材浮层需要这一整套 bridge 和素材选择逻辑；普通工作室首屏不预取。
+const BrowserAssetOverlayApp = React.lazy(() =>
+  import('./ui/browser/overlay/BrowserAssetOverlayApp').then((module) => ({
+    default: module.BrowserAssetOverlayApp,
+  })),
+)
+
+// 预渲染钉死 color-scheme 属性（未手动选过时按本地时间「天黑自动暗」、之后用户存储），让
+// tailwind base 层的 [data-mantine-color-scheme="dark|light"] 选择器即刻命中，避免首帧主题闪烁。
+primeNomiColorScheme()
+
+const container = document.getElementById('root')
+if (!container) throw new Error('Root container not found')
+const root = container ? createRoot(container) : null
+const browserAssetOverlay = new URL(window.location.href).searchParams.get('nomiOverlay') === 'browserAsset'
+if (browserAssetOverlay) {
+  document.documentElement.dataset.nomiOverlay = 'browserAsset'
+  document.documentElement.style.background = 'transparent'
+  document.documentElement.style.backgroundImage = 'none'
+  document.body.style.background = 'transparent'
+  document.body.style.backgroundImage = 'none'
+  document.body.style.overflow = 'hidden'
+  container.style.background = 'transparent'
+  container.style.backgroundImage = 'none'
+}
+
+root?.render(
+  <React.StrictMode>
+    <NomiColorSchemeProvider>
+      <NomiAppProviders>
+        {browserAssetOverlay ? (
+          <React.Suspense fallback={null}>
+            <BrowserAssetOverlayApp />
+          </React.Suspense>
+        ) : (
+          <NomiRouterApp />
+        )}
+      </NomiAppProviders>
+    </NomiColorSchemeProvider>
+  </React.StrictMode>,
+)
