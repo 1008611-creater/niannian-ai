@@ -1,0 +1,73 @@
+'use strict';
+
+const CHANNELS = Object.freeze({
+  h3: Object.freeze({
+    id: 'h3',
+    model: 'minimax-h3',
+    label: 'H3 生视频'
+  }),
+  'dola-seedance-2-5': Object.freeze({
+    id: 'dola-seedance-2-5',
+    model: 'dola-seedance-2-5',
+    label: 'Dola Seedance 2.5（30秒）'
+  }),
+  'doubao-seedance-2-0-fast': Object.freeze({
+    id: 'doubao-seedance-2-0-fast',
+    model: 'doubao-seedance-2-0-fast',
+    label: '豆包 Seedance 2.0 Fast'
+  }),
+  'animate-transfer': Object.freeze({
+    id: 'animate-transfer',
+    model: 'runninghub-animate-motion-transfer',
+    label: '动作迁移（工作流）'
+  }),
+  'animate-ai-app': Object.freeze({
+    id: 'animate-ai-app',
+    model: 'runninghub-animate-ai-app',
+    label: '动作迁移（AI 应用）'
+  })
+});
+
+const ALIASES = Object.freeze({
+  h3: 'h3',
+  'minimax-h3': 'h3',
+  dola: 'dola-seedance-2-5',
+  'dola-seedance-2-5': 'dola-seedance-2-5',
+  'seedance-2-5': 'dola-seedance-2-5',
+  doubao: 'doubao-seedance-2-0-fast',
+  'doubao-seedance-2-0-fast': 'doubao-seedance-2-0-fast',
+  'seedance-2-0-fast': 'doubao-seedance-2-0-fast',
+  'seedance-2.0-fast': 'doubao-seedance-2-0-fast',
+  'animate-transfer': 'animate-transfer',
+  'animate-motion-transfer': 'animate-transfer',
+  'runninghub-animate': 'animate-transfer',
+  'runninghub-animate-motion-transfer': 'animate-transfer',
+  'animate-ai-app': 'animate-ai-app',
+  'runninghub-animate-ai-app': 'animate-ai-app'
+});
+
+function clean(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function resolveVideoChannel(value) {
+  const id = ALIASES[clean(value) || 'h3'];
+  return id ? CHANNELS[id] : null;
+}
+
+function isAnimateVideoChannel(value) {
+  const channel = typeof value === 'object' && value ? value.id : resolveVideoChannel(value);
+  return channel?.id === 'animate-transfer' || channel?.id === 'animate-ai-app';
+}
+
+function isDolaVideoChannel(value) {
+  const channel = typeof value === 'object' && value ? value.id : resolveVideoChannel(value);
+  return channel?.id === 'dola-seedance-2-5';
+}
+
+function isDoubaoVideoChannel(value) {
+  const channel = typeof value === 'object' && value ? value.id : resolveVideoChannel(value);
+  return channel?.id === 'doubao-seedance-2-0-fast';
+}
+
+module.exports = {CHANNELS, resolveVideoChannel, isAnimateVideoChannel, isDolaVideoChannel, isDoubaoVideoChannel};
